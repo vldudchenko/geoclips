@@ -1,0 +1,227 @@
+/* Стили для VideoMarker */
+.video-marker-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.video-marker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.video-marker-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.video-marker-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.video-marker-user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.video-marker-username {
+  font-weight: 600;
+  color: #333;
+}
+
+.video-marker-date {
+  font-size: 12px;
+  color: #666;
+}
+
+.video-marker-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.video-marker-close:hover {
+  background: #f5f5f5;
+}
+
+.video-marker-content {
+  padding: 16px;
+}
+
+.video-marker-title {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.video-marker-description {
+  margin: 0 0 16px 0;
+  color: #666;
+  line-height: 1.4;
+}
+
+.video-marker-player {
+  margin-bottom: 16px;
+}
+
+.video-marker-video {
+  width: 100%;
+  border-radius: 8px;
+  background: #000;
+}
+
+.video-marker-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.video-marker-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: #666;
+}
+
+.video-marker-stat-icon {
+  font-size: 16px;
+}
+
+.video-marker-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.video-marker-like {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 2px solid #e0e0e0;
+  border-radius: 20px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.video-marker-like:hover {
+  border-color: #ff6b6b;
+  background: #fff5f5;
+}
+
+.video-marker-like.liked {
+  border-color: #ff6b6b;
+  background: #ff6b6b;
+  color: white;
+}
+
+.video-marker-like-icon {
+  font-size: 16px;
+}
+
+/* Стили для загрузки видео */
+.video-loading {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 12px 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #666;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.video-loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Стили для видео баллунов на карте */
+.video-balloon {
+  padding: 12px;
+  max-width: 250px;
+}
+
+.video-balloon h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.video-balloon p {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.3;
+}
+
+.video-balloon button {
+  background: #ff6b6b;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.video-balloon button:hover {
+  background: #ff5252;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .video-marker-popup {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .video-marker-header {
+    padding: 12px;
+  }
+  
+  .video-marker-content {
+    padding: 12px;
+  }
+  
+  .video-marker-stats {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

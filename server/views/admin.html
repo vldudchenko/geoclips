@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoClips Admin Panel</title>
+    <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 GeoClips Admin Panel</h1>
+            <p>Панель управления и мониторинга данных</p>
+            <button class="logout-btn" onclick="logout()">🚪 Выйти</button>
+        </div>
+        
+        <div class="content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="users-count">-</div>
+                    <div class="stat-label">Пользователей</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="videos-count">-</div>
+                    <div class="stat-label">Видео</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="total-views">-</div>
+                    <div class="stat-label">Просмотров</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="total-likes">-</div>
+                    <div class="stat-label">Лайков</div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>👥 Пользователи</h2>
+                <button class="btn" onclick="loadUsers()">Обновить список</button>
+                <div id="users-container">
+                    <div class="loading">Загрузка пользователей...</div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>🎬 Видео</h2>
+                <button class="btn" onclick="loadVideos()">Обновить список</button>
+                <div id="videos-container">
+                    <div class="loading">Загрузка видео...</div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>🏷️ Теги</h2>
+                <button class="btn" onclick="loadTags()">Обновить список</button>
+                <div id="tags-container">
+                    <div class="loading">Загрузка тегов...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/admin/admin.js"></script>
+</body>
+</html>
+

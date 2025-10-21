@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build
+client/build/
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Uploads (local development)
+server/uploads/videos/*
+server/uploads/thumbnails/*
+server/uploads/avatars/*
+!server/uploads/videos/.gitkeep
+!server/uploads/thumbnails/.gitkeep
+!server/uploads/avatars/.gitkeep
+
+# Test
+coverage/
+
+# Temp
+*.tmp
+.cache
+

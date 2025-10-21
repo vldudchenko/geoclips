@@ -1,0 +1,33 @@
+{
+  "name": "geoclips",
+  "version": "2.2.1",
+  "description": "Геолокационная видео платформа с картой Яндекс",
+  "main": "index.js",
+  "scripts": {
+    "install-all": "cd server && npm install && cd ../client && npm install",
+    "start": "concurrently \"cd server && npm start\" \"cd client && npm start\"",
+    "dev": "concurrently \"cd server && npm run dev\" \"cd client && npm start\"",
+    "build": "cd client && npm run build",
+    "server": "cd server && npm start",
+    "client": "cd client && npm start",
+    "server-dev": "cd server && npm run dev"
+  },
+  "keywords": [
+    "geolocation",
+    "video",
+    "yandex-maps",
+    "react",
+    "node",
+    "express",
+    "supabase"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/geoclips.git"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
