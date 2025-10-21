@@ -4,6 +4,7 @@
 
 const express = require('express');
 const router = express.Router();
+const ffmpeg = require('fluent-ffmpeg');
 const { requireAdmin } = require('../middleware/auth');
 const supabase = require('../config/supabase');
 const logger = require('../utils/logger');
@@ -15,8 +16,9 @@ const path = require('path');
  */
 router.get('/', async (req, res) => {
   try {
-    // Получаем список админов в начале функции
-    const adminIds = process.env.ADMIN_IDS?.split(',') || [];
+    // Получаем список админов из конфигурации
+    const config = require('../config/environment');
+    const adminIds = config.admin.ids;
     
     logger.info('ADMIN', 'Запрос к админке', {
       isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : false,
@@ -25,12 +27,19 @@ router.get('/', async (req, res) => {
       url: req.url,
       method: req.method,
       adminIds: adminIds,
-      adminIdsLength: adminIds.length
+      adminIdsLength: adminIds.length,
+      sessionId: req.sessionID,
+      userAgent: req.get('User-Agent')
     });
     
     // Если пользователь не авторизован, показываем страницу входа
     if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
-      logger.info('ADMIN', 'Пользователь не авторизован, показываем страницу входа');
+      logger.warn('ADMIN', 'Пользователь не авторизован, показываем страницу входа', {
+        isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : false,
+        hasUser: !!req.user,
+        sessionId: req.sessionID,
+        cookies: req.headers.cookie
+      });
       const loginHtml = `
         <!DOCTYPE html>
         <html lang="ru">
@@ -109,12 +118,7 @@ router.get('/', async (req, res) => {
                 <h1>🎥 GeoClips Admin</h1>
                 <p>Для доступа к панели администратора необходимо авторизоваться через Яндекс</p>
                 <a href="/auth/yandex?returnTo=/admin" class="login-btn">🔐 Войти через Яндекс</a>
-                <div class="warning">
-                    <strong>Внимание:</strong> ${adminIds.length > 0 ? 
-                      'Доступ к админке имеют только пользователи, указанные в переменной ADMIN_IDS' : 
-                      'Доступ разрешен всем авторизованным пользователям (ADMIN_IDS не задана)'
-                    }
-                </div>
+                
             </div>
         </body>
         </html>
@@ -218,53 +222,7 @@ router.get('/', async (req, res) => {
       const html = await readFile(htmlPath, 'utf-8');
       res.send(html);
     } catch (fileError) {
-      logger.error('ADMIN', 'Ошибка чтения файла админки', fileError);
-      
-      // Fallback HTML если файл не найден
-      const fallbackHtml = `
-        <!DOCTYPE html>
-        <html lang="ru">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>GeoClips Admin Panel</title>
-            <style>
-                body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
-                .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
-                .error { color: #dc3545; background: #f8d7da; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
-                .btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🎥 GeoClips Admin Panel</h1>
-                <div class="error">
-                    <strong>Ошибка:</strong> Файл админки не найден. Используется резервная версия.
-                </div>
-                <p>Статистика:</p>
-                <div id="stats">Загрузка...</div>
-                <button class="btn" onclick="loadStats()">Обновить статистику</button>
-            </div>
-            <script>
-                async function loadStats() {
-                    try {
-                        const response = await fetch('/admin/stats');
-                        const data = await response.json();
-                        document.getElementById('stats').innerHTML = 
-                            \`Пользователей: \${data.usersCount || 0}<br>
-                             Видео: \${data.videosCount || 0}<br>
-                             Просмотров: \${data.totalViews || 0}<br>
-                             Лайков: \${data.totalLikes || 0}\`;
-                    } catch (error) {
-                        document.getElementById('stats').innerHTML = 'Ошибка загрузки статистики';
-                    }
-                }
-                loadStats();
-            </script>
-        </body>
-        </html>
-      `;
-      res.send(fallbackHtml);
+      logger.error('ADMIN', 'Ошибка чтения файла админки', fileError);      
     }
   } catch (error) {
     logger.error('ADMIN', 'Ошибка загрузки админ панели', { 
@@ -344,7 +302,7 @@ router.get('/test', async (req, res) => {
 /**
  * Получение статистики
  */
-router.get('/stats', async (req, res) => {
+router.get('/stats', requireAdmin, async (req, res) => {
   try {
     logger.info('ADMIN', 'Запрос статистики');
     
@@ -390,13 +348,22 @@ router.get('/stats', async (req, res) => {
 /**
  * Получение списка пользователей
  */
-router.get('/users', async (req, res) => {
+router.get('/users', requireAdmin, async (req, res) => {
   try {
     logger.info('ADMIN', 'Запрос списка пользователей');
     
     const { data: users, error } = await supabase
       .from('users')
-      .select('id, yandex_id, first_name, last_name, display_name, avatar_url, created_at, updated_at')
+      .select(`
+        id,
+        yandex_id,
+        first_name,
+        last_name,
+        display_name,
+        avatar_url,
+        created_at,
+        updated_at
+      `)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -404,8 +371,33 @@ router.get('/users', async (req, res) => {
       return res.status(500).json({ error: 'Ошибка получения пользователей' });
     }
 
-    logger.info('ADMIN', 'Получены пользователи', { count: users?.length || 0 });
-    res.json(users || []);
+    // Получаем количество видео для каждого пользователя
+    const userIds = users?.map(user => user.id) || [];
+    let videosCounts = {};
+    
+    if (userIds.length > 0) {
+      const { data: videoCounts, error: countError } = await supabase
+        .from('videos')
+        .select('user_id')
+        .in('user_id', userIds);
+      
+      if (!countError && videoCounts) {
+        // Подсчитываем количество видео для каждого пользователя
+        videosCounts = videoCounts.reduce((acc, video) => {
+          acc[video.user_id] = (acc[video.user_id] || 0) + 1;
+          return acc;
+        }, {});
+      }
+    }
+
+    // Обрабатываем данные для отображения
+    const processedUsers = users?.map(user => ({
+      ...user,
+      videos_count: videosCounts[user.id] || 0
+    })) || [];
+
+    logger.info('ADMIN', 'Получены пользователи', { count: processedUsers.length });
+    res.json(processedUsers);
   } catch (error) {
     logger.error('ADMIN', 'Ошибка получения пользователей', error);
     res.status(500).json({ error: 'Ошибка получения пользователей' });
@@ -415,33 +407,31 @@ router.get('/users', async (req, res) => {
 /**
  * Получение списка видео
  */
-router.get('/videos', async (req, res) => {
+router.get('/videos', requireAdmin, async (req, res) => {
   try {
     logger.info('ADMIN', 'Запрос списка видео');
     
-    const { data: videos, error } = await supabase
-      .from('videos')
-      .select(`
-        id,
-        user_id,
-        description,
-        video_url,
-        thumbnail_url,
-        latitude,
-        longitude,
-        duration_seconds,
-        likes_count,
-        views_count,
-        created_at,
-        updated_at,
-        users (
-          id,
-          yandex_id,
-          display_name,
-          avatar_url
-        )
-      `)
-      .order('created_at', { ascending: false });
+     const { data: videos, error } = await supabase
+       .from('videos')
+       .select(`
+         id,
+         user_id,
+         description,
+         video_url,
+         latitude,
+         longitude,
+         likes_count,
+         views_count,
+         created_at,
+         updated_at,
+         users (
+           id,
+           yandex_id,
+           display_name,
+           avatar_url
+         )
+       `)
+       .order('created_at', { ascending: false });
 
     if (error) {
       logger.error('ADMIN', 'Ошибка получения видео', error);
@@ -463,12 +453,12 @@ router.delete('/videos/:id', requireAdmin, async (req, res) => {
   try {
     const videoId = req.params.id;
     
-    // Сначала получаем информацию о видео для удаления файлов
-    const { data: video, error: fetchError } = await supabase
-      .from('videos')
-      .select('video_url, thumbnail_url')
-      .eq('id', videoId)
-      .single();
+     // Сначала получаем информацию о видео для удаления файлов
+     const { data: video, error: fetchError } = await supabase
+       .from('videos')
+       .select('video_url')
+       .eq('id', videoId)
+       .single();
 
     if (fetchError) {
       logger.error('ADMIN', 'Ошибка получения видео для удаления', fetchError);
@@ -510,7 +500,7 @@ router.delete('/videos/:id', requireAdmin, async (req, res) => {
 /**
  * Получение списка тегов
  */
-router.get('/tags', async (req, res) => {
+router.get('/tags', requireAdmin, async (req, res) => {
   try {
     logger.info('ADMIN', 'Запрос списка тегов');
     
@@ -519,10 +509,8 @@ router.get('/tags', async (req, res) => {
       .select(`
         id,
         name,
-        created_at,
-        video_tags (
-          video_id
-        )
+        usage_count,
+        created_at
       `)
       .order('name', { ascending: true });
 
@@ -531,14 +519,8 @@ router.get('/tags', async (req, res) => {
       return res.status(500).json({ error: 'Ошибка получения тегов' });
     }
 
-    // Добавляем количество использований каждого тега
-    const tagsWithCount = tags?.map(tag => ({
-      ...tag,
-      usage_count: tag.video_tags?.length || 0
-    })) || [];
-
-    logger.info('ADMIN', 'Получены теги', { count: tagsWithCount.length });
-    res.json(tagsWithCount);
+    logger.info('ADMIN', 'Получены теги', { count: tags?.length || 0 });
+    res.json(tags || []);
   } catch (error) {
     logger.error('ADMIN', 'Ошибка получения тегов', error);
     res.status(500).json({ error: 'Ошибка получения тегов' });
@@ -552,6 +534,22 @@ router.delete('/tags/:id', requireAdmin, async (req, res) => {
   try {
     const tagId = req.params.id;
     
+    logger.info('ADMIN', 'Удаление тега', { tagId });
+
+    // Получаем информацию о теге перед удалением
+    const { data: tag, error: tagError } = await supabase
+      .from('tags')
+      .select('name, usage_count')
+      .eq('id', tagId)
+      .single();
+
+    if (tagError || !tag) {
+      logger.warn('ADMIN', 'Тег не найден', { tagId });
+      return res.status(404).json({ error: 'Тег не найден' });
+    }
+
+    const usageCount = tag.usage_count || 0;
+    
     // Сначала удаляем все связи тега с видео
     const { error: videoTagsError } = await supabase
       .from('video_tags')
@@ -559,7 +557,19 @@ router.delete('/tags/:id', requireAdmin, async (req, res) => {
       .eq('tag_id', tagId);
 
     if (videoTagsError) {
-      logger.warn('ADMIN', 'Ошибка удаления связей тега с видео', videoTagsError);
+      logger.error('ADMIN', 'Ошибка удаления связей тега с видео', videoTagsError);
+      return res.status(500).json({ error: 'Ошибка удаления связей тега' });
+    }
+
+    // Обновляем счетчик использования тега на 0 перед удалением
+    const { error: updateError } = await supabase
+      .from('tags')
+      .update({ usage_count: 0 })
+      .eq('id', tagId);
+
+    if (updateError) {
+      logger.error('ADMIN', 'Ошибка обновления счетчика тега', updateError);
+      // Продолжаем удаление даже если не удалось обновить счетчик
     }
 
     // Удаляем тег из базы данных
@@ -573,11 +583,279 @@ router.delete('/tags/:id', requireAdmin, async (req, res) => {
       return res.status(500).json({ error: 'Ошибка удаления тега' });
     }
 
-    logger.info('ADMIN', 'Тег удален', { tagId });
-    res.json({ message: 'Тег успешно удален' });
+    logger.success('ADMIN', 'Тег успешно удален', { 
+      tagId, 
+      tagName: tag.name, 
+      usageCount: usageCount 
+    });
+    res.json({ 
+      message: 'Тег успешно удален',
+      tagName: tag.name,
+      deletedConnections: usageCount
+    });
   } catch (error) {
     logger.error('ADMIN', 'Ошибка удаления тега', error);
     res.status(500).json({ error: 'Ошибка удаления тега' });
+  }
+});
+
+/**
+ * Исправление счетчиков использования тегов
+ */
+router.post('/tags/fix-counters', requireAdmin, async (req, res) => {
+  try {
+    logger.info('ADMIN', 'Исправление счетчиков использования тегов');
+    
+    // Получаем все теги с их текущими счетчиками
+    const { data: tags, error: tagsError } = await supabase
+      .from('tags')
+      .select('id, name, usage_count');
+    
+    if (tagsError) {
+      logger.error('ADMIN', 'Ошибка получения тегов', tagsError);
+      return res.status(500).json({ error: 'Ошибка получения тегов' });
+    }
+    
+    let fixedCount = 0;
+    const results = [];
+    
+    // Исправляем счетчики для каждого тега
+    for (const tag of tags) {
+      // Получаем реальное количество связей
+      const { count: realCount, error: countError } = await supabase
+        .from('video_tags')
+        .select('*', { count: 'exact', head: true })
+        .eq('tag_id', tag.id);
+      
+      if (countError) {
+        logger.error('ADMIN', 'Ошибка подсчета связей для тега', { tagId: tag.id, error: countError });
+        continue;
+      }
+      
+      const actualCount = realCount || 0;
+      const currentCount = tag.usage_count || 0;
+      
+      // Если счетчики не совпадают, обновляем
+      if (actualCount !== currentCount) {
+        const { error: updateError } = await supabase
+          .from('tags')
+          .update({ usage_count: actualCount })
+          .eq('id', tag.id);
+        
+        if (updateError) {
+          logger.error('ADMIN', 'Ошибка обновления счетчика тега', { tagId: tag.id, error: updateError });
+          continue;
+        }
+        
+        fixedCount++;
+        results.push({
+          tagId: tag.id,
+          tagName: tag.name,
+          oldCount: currentCount,
+          newCount: actualCount
+        });
+        
+        logger.info('ADMIN', 'Счетчик тега исправлен', { 
+          tagId: tag.id, 
+          tagName: tag.name, 
+          oldCount: currentCount, 
+          newCount: actualCount 
+        });
+      }
+    }
+    
+    logger.success('ADMIN', 'Исправление счетчиков завершено', { 
+      totalTags: tags.length, 
+      fixedCount: fixedCount 
+    });
+    
+    res.json({
+      success: true,
+      message: `Исправлено ${fixedCount} из ${tags.length} тегов`,
+      totalTags: tags.length,
+      fixedCount: fixedCount,
+      results: results
+    });
+    
+  } catch (error) {
+    logger.error('ADMIN', 'Ошибка исправления счетчиков тегов', error);
+    res.status(500).json({ error: 'Ошибка исправления счетчиков тегов' });
+  }
+});
+
+/**
+ * Массовое удаление тегов
+ */
+router.delete('/tags/bulk', requireAdmin, async (req, res) => {
+  try {
+    const { tagIds } = req.body;
+    
+    if (!tagIds || !Array.isArray(tagIds) || tagIds.length === 0) {
+      return res.status(400).json({ error: 'Необходимо предоставить массив ID тегов' });
+    }
+    
+    logger.info('ADMIN', 'Массовое удаление тегов', { tagIds, count: tagIds.length });
+    
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+    
+    // Удаляем теги по одному
+    for (const tagId of tagIds) {
+      try {
+        // Получаем информацию о теге
+        const { data: tag } = await supabase
+          .from('tags')
+          .select('name, usage_count')
+          .eq('id', tagId)
+          .single();
+        
+        if (!tag) {
+          errorCount++;
+          errors.push(`Тег с ID ${tagId} не найден`);
+          continue;
+        }
+        
+        // Удаляем связи с видео
+        const { error: videoTagsError } = await supabase
+          .from('video_tags')
+          .delete()
+          .eq('tag_id', tagId);
+        
+        if (videoTagsError) {
+          errorCount++;
+          errors.push(`Ошибка удаления связей для тега ${tag.name}`);
+          continue;
+        }
+        
+        // Обновляем счетчик использования тега на 0 перед удалением
+        const { error: updateError } = await supabase
+          .from('tags')
+          .update({ usage_count: 0 })
+          .eq('id', tagId);
+        
+        if (updateError) {
+          logger.warn('ADMIN', 'Ошибка обновления счетчика тега', { tagId, error: updateError.message });
+          // Продолжаем удаление даже если не удалось обновить счетчик
+        }
+        
+        // Удаляем тег
+        const { error: deleteError } = await supabase
+          .from('tags')
+          .delete()
+          .eq('id', tagId);
+        
+        if (deleteError) {
+          errorCount++;
+          errors.push(`Ошибка удаления тега ${tag.name}`);
+          continue;
+        }
+        
+        successCount++;
+        logger.info('ADMIN', 'Тег удален', { tagId, tagName: tag.name });
+        
+      } catch (error) {
+        errorCount++;
+        errors.push(`Ошибка при удалении тега ${tagId}: ${error.message}`);
+        logger.error('ADMIN', 'Ошибка удаления тега в массовой операции', { tagId, error: error.message });
+      }
+    }
+    
+    logger.info('ADMIN', 'Массовое удаление завершено', { 
+      total: tagIds.length, 
+      success: successCount, 
+      errors: errorCount 
+    });
+    
+    res.json({
+      message: 'Массовое удаление завершено',
+      total: tagIds.length,
+      successCount,
+      errorCount,
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    logger.error('ADMIN', 'Ошибка массового удаления тегов', error);
+    res.status(500).json({ error: 'Ошибка массового удаления тегов' });
+  }
+});
+
+/**
+ * Выход из админки
+ */
+router.post('/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      logger.error('ADMIN', 'Ошибка при выходе', err);
+      return res.status(500).json({ error: 'Ошибка при выходе' });
+    }
+    
+    req.session.destroy((err) => {
+      if (err) {
+        logger.error('ADMIN', 'Ошибка при уничтожении сессии', err);
+        return res.status(500).json({ error: 'Ошибка при выходе' });
+      }
+      
+      res.clearCookie('connect.sid');
+      res.json({ message: 'Успешный выход' });
+    });
+  });
+});
+
+/**
+ * Статические файлы админки
+ */
+router.get('/admin.css', (req, res) => {
+  res.setHeader('Content-Type', 'text/css');
+  res.sendFile(path.join(__dirname, '../views/admin.css'));
+});
+
+router.get('/admin.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.sendFile(path.join(__dirname, '../views/admin.js'));
+});
+
+/**
+ * Генерация превью из второго кадра видео
+ */
+router.post('/generate-thumbnail', requireAdmin, async (req, res) => {
+  try {
+    const { videoUrl } = req.body;
+    
+    if (!videoUrl) {
+      return res.status(400).json({ error: 'URL видео не предоставлен' });
+    }
+
+    logger.info('ADMIN', 'Генерация превью', { videoUrl });
+
+    // Создаем уникальное имя файла
+    const thumbnailName = `admin_${Date.now()}.jpg`;
+
+    // Генерируем превью на 2 секунде
+    await new Promise((resolve, reject) => {
+      ffmpeg(videoUrl)
+        .screenshots({
+          timestamps: ['2'],
+          filename: thumbnailName,
+          folder: 'uploads/thumbnails',
+          size: '320x240'
+        })
+        .on('end', resolve)
+        .on('error', reject);
+    });
+
+    const thumbnailUrl = `${config.baseUrl}/uploads/thumbnails/${thumbnailName}`;
+
+    logger.success('ADMIN', 'Превью успешно создано', { thumbnailUrl });
+    res.json({
+      success: true,
+      thumbnailUrl: thumbnailUrl
+    });
+
+  } catch (error) {
+    logger.error('ADMIN', 'Ошибка генерации превью', error);
+    res.status(500).json({ error: 'Ошибка генерации превью' });
   }
 });
 

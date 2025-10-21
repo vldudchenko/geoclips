@@ -11,6 +11,7 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(video?.likes_count || 0);
+  const [isLiking, setIsLiking] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState('user');
   const [userAvatar, setUserAvatar] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -53,6 +54,23 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
     loadVideoTags();
   }, [video?.id]);
 
+  // Загружаем состояние лайка при открытии видео
+  useEffect(() => {
+    const loadLikeStatus = async () => {
+      if (!video?.id || !currentUser?.accessToken) return;
+      
+      try {
+        const liked = await VideoService.isVideoLiked(video.id, currentUser.accessToken);
+        setIsLiked(liked);
+      } catch (error) {
+        console.error('Ошибка при загрузке состояния лайка:', error);
+        setIsLiked(false);
+      }
+    };
+
+    loadLikeStatus();
+  }, [video?.id, currentUser?.accessToken]);
+
 
   const handleClickOutside = (e) => {
     if (e.target.classList.contains('tiktok-player-overlay')) {
@@ -85,9 +103,30 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
     }
   }, [video, volume]);
 
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    setLikesCount(isLiked ? likesCount - 1 : likesCount + 1);
+  const handleLike = async () => {
+    if (!video?.id || !currentUser?.accessToken || isLiking) return;
+    
+    setIsLiking(true);
+    
+    try {
+      if (isLiked) {
+        // Убираем лайк
+        const result = await VideoService.unlikeVideo(video.id, currentUser.accessToken);
+        setIsLiked(false);
+        setLikesCount(result.likesCount || likesCount - 1);
+      } else {
+        // Добавляем лайк
+        const result = await VideoService.likeVideo(video.id, currentUser.accessToken);
+        setIsLiked(true);
+        setLikesCount(result.likesCount || likesCount + 1);
+      }
+    } catch (error) {
+      console.error('Ошибка при лайке видео:', error);
+      // Показываем уведомление пользователю
+      alert('Ошибка при лайке видео: ' + error.message);
+    } finally {
+      setIsLiking(false);
+    }
   };
 
   const handleVolumeChange = (e) => {
@@ -200,7 +239,6 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
           <video
             ref={videoRef}
             src={video.video_url}
-            poster={video.thumbnail_url}
             autoPlay
             loop
             className="tiktok-video"
@@ -230,11 +268,19 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
           </div>
 
           {/* Кнопка лайка */}
-          <div className="tiktok-action-button" onClick={handleLike}>
+          <div 
+            className={`tiktok-action-button ${isLiking ? 'loading' : ''} ${!currentUser ? 'disabled' : ''}`} 
+            onClick={currentUser ? handleLike : () => alert('Для лайка необходимо войти в систему')}
+            style={{ 
+              opacity: isLiking ? 0.6 : (!currentUser ? 0.5 : 1), 
+              cursor: isLiking ? 'not-allowed' : (!currentUser ? 'not-allowed' : 'pointer') 
+            }}
+            title={!currentUser ? 'Войдите в систему для лайка' : ''}
+          >
             <svg width="32" height="32" viewBox="0 0 24 24" fill={isLiked ? "#ff0050" : "white"}>
               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
             </svg>
-            <span className="action-count">{likesCount}</span>
+            <span className="action-count">{isLiking ? '...' : likesCount}</span>
           </div>
 
           {/* Кнопка комментариев */}

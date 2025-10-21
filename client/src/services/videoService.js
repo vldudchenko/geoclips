@@ -13,10 +13,8 @@ export class VideoService {
       user_id,
       description,
       video_url,
-      thumbnail_url,
       latitude,
       longitude,
-      duration_seconds,
       likes_count,
       views_count,
       created_at,
@@ -124,12 +122,12 @@ export class VideoService {
    */
   static async uploadVideo(videoData) {
     try {
-      // Сначала сохраняем видео без тегов
-      const { tags, ...videoDataWithoutTags } = videoData;
+      // Фильтруем только поля, которые должны быть в базе данных
+      const { tags, message, success, ...videoDataForDb } = videoData;
       
       const { data, error } = await supabase
         .from('videos')
-        .insert([videoDataWithoutTags])
+        .insert([videoDataForDb])
         .select(this.VIDEO_SELECT_FIELDS)
         .maybeSingle();
 
@@ -283,16 +281,23 @@ export class VideoService {
     }
   }
 
-  // Лайкнуть видео
-  static async likeVideo(videoId, userId) {
+  // Лайкнуть видео через серверный API
+  static async likeVideo(videoId, accessToken) {
     try {
-      const { data, error } = await supabase
-        .from('likes')
-        .insert([{ video_id: videoId, user_id: userId }])
-        .select('id, video_id, user_id, created_at')
-        .maybeSingle(); // Используем maybeSingle вместо single
+      const response = await fetch(`/api/videos/${videoId}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Ошибка при лайке видео');
+      }
+
+      const data = await response.json();
       return data;
     } catch (error) {
       console.error('Error liking video:', error);
@@ -300,35 +305,50 @@ export class VideoService {
     }
   }
 
-  // Убрать лайк
-  static async unlikeVideo(videoId, userId) {
+  // Убрать лайк через серверный API
+  static async unlikeVideo(videoId, accessToken) {
     try {
-      const { error } = await supabase
-        .from('likes')
-        .delete()
-        .eq('video_id', videoId)
-        .eq('user_id', userId);
+      const response = await fetch(`/api/videos/${videoId}/like`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
 
-      if (error) throw error;
-      return true;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Ошибка при удалении лайка');
+      }
+
+      const data = await response.json();
+      return data;
     } catch (error) {
       console.error('Error unliking video:', error);
       throw error;
     }
   }
 
-  // Проверить, лайкнул ли пользователь видео
-  static async isVideoLiked(videoId, userId) {
+  // Проверить, лайкнул ли пользователь видео через серверный API
+  static async isVideoLiked(videoId, accessToken) {
     try {
-      const { data, error } = await supabase
-        .from('likes')
-        .select('id')
-        .eq('video_id', videoId)
-        .eq('user_id', userId)
-        .maybeSingle(); // Используем maybeSingle вместо single
+      const response = await fetch(`/api/videos/${videoId}/like-status`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
 
-      return !error && data !== null;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Ошибка при проверке статуса лайка');
+      }
+
+      const data = await response.json();
+      return data.isLiked;
     } catch (error) {
+      console.error('Error checking like status:', error);
       return false;
     }
   }

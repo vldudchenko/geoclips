@@ -186,7 +186,6 @@ const UploadForm = ({ coordinates, onSubmit, onCancel, user }) => {
         video_url: videoUrl,
         latitude: coordinates[1],
         longitude: coordinates[0],
-        duration_seconds: null, // Можно добавить позже
         likes_count: 0,
         views_count: 0,
         tags: formData.tags // Добавляем теги

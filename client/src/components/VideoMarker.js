@@ -82,7 +82,6 @@ const VideoMarker = ({ video, onClose }) => {
             onPlay={handlePlay}
             onPause={handlePause}
             className="video-marker-video"
-            poster={video.thumbnail_url}
           >
             Ваш браузер не поддерживает видео.
           </video>
@@ -93,12 +92,6 @@ const VideoMarker = ({ video, onClose }) => {
             <span className="video-marker-stat-icon">👁️</span>
             <span>{video.views_count}</span>
           </div>
-          {video.duration_seconds && (
-            <div className="video-marker-stat">
-              <span className="video-marker-stat-icon">⏱️</span>
-              <span>{Math.floor(video.duration_seconds / 60)}:{(video.duration_seconds % 60).toString().padStart(2, '0')}</span>
-            </div>
-          )}
         </div>
 
         <div className="video-marker-actions">

@@ -49,6 +49,11 @@ const config = {
       'http://127.0.0.1:3000',
       'http://192.168.31.164:3000'
     ]
+  },
+
+  // Admin
+  admin: {
+    ids: process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : []
   }
 };
 

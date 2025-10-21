@@ -27,15 +27,32 @@ router.get('/yandex/callback',
   passport.authenticate('yandex', { failureRedirect: `${config.clientUrl}/login` }),
   async (req, res) => {
     try {
-      logger.success('AUTH', 'Успешная авторизация', { user_id: req.user?.id });
+      logger.success('AUTH', 'Успешная авторизация', { 
+        user_id: req.user?.id,
+        sessionId: req.sessionID,
+        returnTo: req.session.returnTo
+      });
       
       // Получаем URL возврата из сессии
       const returnTo = req.session.returnTo || '/';
       delete req.session.returnTo; // Очищаем после использования
       
+      logger.info('AUTH', 'Callback redirect logic', { 
+        returnTo, 
+        baseUrl: config.baseUrl,
+        clientUrl: config.clientUrl 
+      });
+      
       // Если это админка, перенаправляем туда
-      if (returnTo.includes('/admin')) {
-        res.redirect(`${config.baseUrl}/admin`);
+      if (returnTo === '/admin' || returnTo.includes('/admin')) {
+        logger.info('AUTH', 'Redirecting to admin panel');
+        // Принудительно сохраняем сессию перед редиректом
+        req.session.save((err) => {
+          if (err) {
+            logger.error('AUTH', 'Ошибка сохранения сессии', err);
+          }
+          res.redirect(`${config.baseUrl}/admin`);
+        });
         return;
       }
       

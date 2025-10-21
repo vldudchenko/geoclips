@@ -346,22 +346,7 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
                 {videos.map((video) => (
                   <div key={video.id} className="video-card" onClick={() => handleVideoClick(video)}>
                     <div className="video-thumbnail">
-                      {video.thumbnail_url ? (
-                        <img 
-                          src={video.thumbnail_url} 
-                          alt={video.description || 'Видео'}
-                          className="video-thumbnail-image"
-                          onError={(e) => {
-                            console.log('❌ Ошибка загрузки превью:', video.thumbnail_url);
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                          }}
-                        />
-                      ) : null}
-                      {!video.thumbnail_url && (
-                        <div className="video-thumbnail-placeholder">🎥</div>
-                      )}
-                      <div className="video-thumbnail-placeholder" style={{display: 'none'}}>🎥</div>
+                      <div className="video-thumbnail-placeholder">🎥</div>
                     </div>
                     <div className="video-info">
                       <h4 className="video-title">{video.description || 'Без описания'}</h4>

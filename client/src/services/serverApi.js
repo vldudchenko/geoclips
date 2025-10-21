@@ -26,7 +26,7 @@ export class ServerApi {
       const formData = new FormData();
       formData.append('video', videoFile);
 
-      const response = await fetch(`${SERVER_URL}/api/generate-thumbnail`, {
+      const response = await fetch(`${SERVER_URL}/api/video/generate-thumbnail`, {
         method: 'POST',
         body: formData,
       });
@@ -69,7 +69,7 @@ export class ServerApi {
       const formData = new FormData();
       formData.append('video', videoFile);
 
-      const response = await fetch(`${SERVER_URL}/api/validate-video`, {
+      const response = await fetch(`${SERVER_URL}/api/video/validate-video`, {
         method: 'POST',
         body: formData,
       });

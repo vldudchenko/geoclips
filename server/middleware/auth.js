@@ -87,15 +87,17 @@ const requireAdmin = (req, res, next) => {
   // Здесь можно добавить проверку роли из БД
   // const isAdmin = req.user?.dbUser?.role === 'admin';
   
-  // Пока пропускаем всех авторизованных (можно добавить список админов)
-  const adminIds = process.env.ADMIN_IDS?.split(',') || [];
+  // Проверяем права администратора
+  const config = require('../config/environment');
+  const adminIds = config.admin.ids;
   const userId = req.user?.dbUser?.id;
   
+  // Если ADMIN_IDS не задана, разрешаем доступ всем авторизованным пользователям
   if (adminIds.length > 0 && !adminIds.includes(userId)) {
-    logger.warn('AUTH', 'Попытка доступа к админке без прав', { userId });
+    logger.warn('AUTH', 'Попытка доступа к админке без прав', { userId, adminIds });
     return res.status(403).json({ 
-      error: 'Доступ запрещен',
-      code: 'FORBIDDEN'
+      error: 'Доступ запрещен', 
+      code: 'FORBIDDEN' 
     });
   }
   

@@ -210,15 +210,6 @@ router.delete('/:videoId', requireAuth, async (req, res) => {
         }
       }
 
-      if (video.thumbnail_url) {
-        const thumbnailPath = video.thumbnail_url.replace(`${config.baseUrl}/uploads/thumbnails/`, 'uploads/thumbnails/');
-        try {
-          await fs.unlink(thumbnailPath);
-          logger.success('VIDEO', 'Файл превью удален', { thumbnailPath });
-        } catch (unlinkError) {
-          logger.warn('VIDEO', 'Не удалось удалить файл превью', { thumbnailPath, error: unlinkError.message });
-        }
-      }
     } catch (fileError) {
       logger.warn('VIDEO', 'Ошибка удаления файлов', fileError);
       // Не возвращаем ошибку, так как видео уже удалено из БД

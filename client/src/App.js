@@ -32,7 +32,10 @@ const HomePage = ({ user, onLogout, ymaps, mapData, setMapData, error, setError,
   const handleSubmitUpload = async (uploadData) => {
     try {
       console.log('App: Отправка данных загрузки:', uploadData);
-      await VideoService.uploadVideo(uploadData);
+      
+      // Извлекаем только данные видео, исключая служебные поля
+      const { success, message, ...videoData } = uploadData;
+      await VideoService.uploadVideo(videoData);
       
       // Очищаем данные карты после успешной загрузки
       setMapData(null);
@@ -49,6 +52,8 @@ const HomePage = ({ user, onLogout, ymaps, mapData, setMapData, error, setError,
 
   const handleCloseUploadForm = () => {
     setShowUploadForm(false);
+    setMapData(null);
+    localStorage.removeItem('mapData');
   };
 
   return (

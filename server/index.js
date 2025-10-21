@@ -78,7 +78,11 @@ app.use(session({
   secret: config.session.secret,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: config.session.secure }
+  cookie: { 
+    secure: config.session.secure,
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 часа
+  }
 }));
 
 // Passport middleware
@@ -94,18 +98,9 @@ app.use('/uploads', express.static('uploads', {
 
 // Обработка статических файлов для Hot Module Replacement (только в режиме разработки)
 if (config.nodeEnv !== 'production') {
-  // Обработка hot-update файлов и других статических ресурсов
+  // Обработка hot-update файлов
   app.get('*.hot-update.*', (req, res) => {
     res.status(404).json({ error: 'Hot update file not found' });
-  });
-  
-  // Обработка других статических файлов React
-  app.get('*.js', (req, res) => {
-    res.status(404).json({ error: 'Static file not found' });
-  });
-  
-  app.get('*.css', (req, res) => {
-    res.status(404).json({ error: 'Static file not found' });
   });
 }
 // Удаляем публичную раздачу админки, доступ только через защищенные роуты
@@ -114,7 +109,7 @@ if (config.nodeEnv !== 'production') {
 app.use('/auth', limiters.auth, authRoutes);
 // Монтируем видео-роуты под /api, избегая двойного применения лимитеров
 app.use('/api', limiters.api, apiRoutes);
-app.use('/api', videoRoutes);
+app.use('/api/video', videoRoutes);
 app.use('/admin', limiters.read, adminRoutes);
 
 // Обработка корневого пути - перенаправляем на админку

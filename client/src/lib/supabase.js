@@ -6,37 +6,4 @@ const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJI
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Типы для TypeScript (опционально)
-export interface Video {
-  id: string;
-  user_id: string;
-  description?: string;
-  video_url: string;
-  thumbnail_url?: string;
-  latitude: number;
-  longitude: number;
-  duration_seconds?: number;
-  likes_count: number;
-  views_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface User {
-  id: string;
-  yandex_id: string;
-  first_name?: string;
-  last_name?: string;
-  display_name?: string;
-  avatar_url?: string;
-  total_likes: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Tag {
-  id: string;
-  name: string;
-  usage_count: number;
-  created_at: string;
-}
+// Типы для TypeScript (опционально) - удалены для совместимости с .js файлом

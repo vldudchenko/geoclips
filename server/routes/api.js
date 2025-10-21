@@ -10,6 +10,7 @@ const logger = require('../utils/logger');
 const cacheManager = require('../utils/cacheUtils');
 const supabase = require('../config/supabase');
 const { validateAddress, validateAccessToken } = require('../middleware/validation');
+const { requireAuth } = require('../middleware/auth');
 const { updateUserBasicData } = require('../services/userService');
 
 /**
@@ -384,12 +385,6 @@ router.get('/profile/:identifier', async (req, res) => {
     // Обрабатываем видео и теги
     const processedVideos = videos?.map(video => ({
       ...video,
-      // Убеждаемся, что thumbnail_url - полный URL
-      thumbnail_url: video.thumbnail_url ? 
-        (video.thumbnail_url.startsWith('http') ? 
-          video.thumbnail_url : 
-          `${config.baseUrl}${video.thumbnail_url}`) : 
-        null,
       tags: video.video_tags?.map(vt => vt.tags).filter(Boolean) || []
     })) || [];
 
@@ -411,6 +406,160 @@ router.get('/profile/:identifier', async (req, res) => {
   } catch (error) {
     logger.error('API', 'Ошибка получения данных профиля', error);
     res.status(500).json({ error: 'Ошибка сервера при получении данных профиля' });
+  }
+});
+
+/**
+ * Лайкнуть видео
+ */
+router.post('/videos/:videoId/like', requireAuth, async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const currentUserId = req.user?.dbUser?.id;
+
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Пользователь не авторизован' });
+    }
+
+    logger.loading('LIKES', 'Лайк видео', { videoId, userId: currentUserId });
+
+    // Проверяем, не лайкнул ли уже пользователь это видео
+    const { data: existingLike, error: checkError } = await supabase
+      .from('likes')
+      .select('id')
+      .eq('video_id', videoId)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    if (checkError) {
+      logger.error('LIKES', 'Ошибка проверки существующего лайка', checkError);
+      return res.status(500).json({ error: 'Ошибка проверки лайка' });
+    }
+
+    if (existingLike) {
+      logger.warn('LIKES', 'Пользователь уже лайкнул видео', { videoId, userId: currentUserId });
+      return res.status(400).json({ error: 'Видео уже лайкнуто' });
+    }
+
+    // Добавляем лайк
+    const { data: like, error: likeError } = await supabase
+      .from('likes')
+      .insert([{ video_id: videoId, user_id: currentUserId }])
+      .select('id, video_id, user_id, created_at')
+      .single();
+
+    if (likeError) {
+      logger.error('LIKES', 'Ошибка добавления лайка', likeError);
+      return res.status(500).json({ error: 'Ошибка добавления лайка' });
+    }
+
+    // Получаем обновленный счетчик лайков
+    const { data: video, error: videoError } = await supabase
+      .from('videos')
+      .select('likes_count')
+      .eq('id', videoId)
+      .single();
+
+    if (videoError) {
+      logger.error('LIKES', 'Ошибка получения счетчика лайков', videoError);
+    }
+
+    logger.success('LIKES', 'Видео лайкнуто', { videoId, userId: currentUserId, likesCount: video?.likes_count });
+    
+    res.json({
+      success: true,
+      like: like,
+      likesCount: video?.likes_count || 0
+    });
+
+  } catch (error) {
+    logger.error('LIKES', 'Ошибка лайка видео', error);
+    res.status(500).json({ error: 'Ошибка сервера при лайке видео' });
+  }
+});
+
+/**
+ * Убрать лайк с видео
+ */
+router.delete('/videos/:videoId/like', requireAuth, async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const currentUserId = req.user?.dbUser?.id;
+
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Пользователь не авторизован' });
+    }
+
+    logger.loading('LIKES', 'Удаление лайка', { videoId, userId: currentUserId });
+
+    // Удаляем лайк
+    const { error: unlikeError } = await supabase
+      .from('likes')
+      .delete()
+      .eq('video_id', videoId)
+      .eq('user_id', currentUserId);
+
+    if (unlikeError) {
+      logger.error('LIKES', 'Ошибка удаления лайка', unlikeError);
+      return res.status(500).json({ error: 'Ошибка удаления лайка' });
+    }
+
+    // Получаем обновленный счетчик лайков
+    const { data: video, error: videoError } = await supabase
+      .from('videos')
+      .select('likes_count')
+      .eq('id', videoId)
+      .single();
+
+    if (videoError) {
+      logger.error('LIKES', 'Ошибка получения счетчика лайков', videoError);
+    }
+
+    logger.success('LIKES', 'Лайк убран', { videoId, userId: currentUserId, likesCount: video?.likes_count });
+    
+    res.json({
+      success: true,
+      likesCount: video?.likes_count || 0
+    });
+
+  } catch (error) {
+    logger.error('LIKES', 'Ошибка удаления лайка', error);
+    res.status(500).json({ error: 'Ошибка сервера при удалении лайка' });
+  }
+});
+
+/**
+ * Проверить, лайкнул ли пользователь видео
+ */
+router.get('/videos/:videoId/like-status', requireAuth, async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const currentUserId = req.user?.dbUser?.id;
+
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Пользователь не авторизован' });
+    }
+
+    const { data: like, error } = await supabase
+      .from('likes')
+      .select('id')
+      .eq('video_id', videoId)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    if (error) {
+      logger.error('LIKES', 'Ошибка проверки статуса лайка', error);
+      return res.status(500).json({ error: 'Ошибка проверки статуса лайка' });
+    }
+
+    res.json({
+      success: true,
+      isLiked: !!like
+    });
+
+  } catch (error) {
+    logger.error('LIKES', 'Ошибка проверки статуса лайка', error);
+    res.status(500).json({ error: 'Ошибка сервера при проверке статуса лайка' });
   }
 });
 

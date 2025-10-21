@@ -139,7 +139,7 @@ Callback после авторизации
 #### `GET /api/yandex-user-data?accessToken=TOKEN`
 Получить данные пользователя Яндекс
 
-#### `POST /api/validate-video`
+#### `POST /api/video/validate-video`
 Валидация видео файла
 
 **Request:** multipart/form-data с полем `video`
@@ -155,7 +155,7 @@ Callback после авторизации
 
 ### Видео
 
-#### `POST /api/generate-thumbnail`
+#### `POST /api/video/generate-thumbnail`
 Генерация превью видео
 
 **Request:** multipart/form-data с полем `video`
@@ -165,6 +165,19 @@ Callback после авторизации
 {
   "success": true,
   "thumbnailPath": "/uploads/thumbnails/abc123.jpg"
+}
+```
+
+#### `DELETE /api/video/:videoId`
+Удаление видео
+
+**Headers:** Authorization required
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Видео успешно удалено"
 }
 ```
 

@@ -289,6 +289,26 @@
   animation: pulse 0.2s ease;
 }
 
+/* Стили для состояния загрузки лайка */
+.tiktok-action-button.loading {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.tiktok-action-button.loading svg {
+  animation: pulse 1s infinite;
+}
+
+.tiktok-action-button.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tiktok-action-button.disabled:hover {
+  transform: none;
+}
+
 /* Ползунок громкости */
 .tiktok-volume-control {
   display: flex;

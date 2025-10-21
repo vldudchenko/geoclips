@@ -9,9 +9,9 @@ const { createUserAvatar } = require('./avatarService');
 /**
  * Проверка и создание пользователя в базе данных
  */
-const ensureUserInDatabase = async (yandexUserData) => {
+const ensureUserInDatabase = async (yandexUserData, retryCount = 0) => {
   try {
-    logger.info('USER', 'Проверяем пользователя в базе данных', { yandex_id: yandexUserData.id });
+    logger.info('USER', 'Проверяем пользователя в базе данных', { yandex_id: yandexUserData.id, retry: retryCount });
 
     // Проверяем, существует ли пользователь
     const { data: existingUser, error: selectError } = await supabase
@@ -67,41 +67,49 @@ const ensureUserInDatabase = async (yandexUserData) => {
       logger.success('USER', 'Данные пользователя обновлены', { user_id: updatedUser.id });
       return updatedUser;
     } else {
-      logger.info('USER', 'Создаем нового пользователя');
-      
-      // Создаем нового пользователя
-      let avatarUrl = null;
+      logger.info('USER', 'Создаем/обновляем пользователя через UPSERT');
       
       // Создаем аватар из Яндекс данных, если он есть
+      let avatarUrl = null;
       if (yandexUserData.is_avatar_empty === false && yandexUserData.default_avatar_id) {
-        avatarUrl = await createUserAvatar(yandexUserData);
+        try {
+          avatarUrl = await createUserAvatar(yandexUserData);
+        } catch (error) {
+          logger.error('USER', 'Ошибка создания аватара, продолжаем без него', error);
+        }
       }
       
-      const newUserData = {
-        yandex_id: yandexUserData.id,
-        first_name: yandexUserData.first_name || 'Пользователь',
-        last_name: yandexUserData.last_name || '',
-        display_name: yandexUserData.display_name || yandexUserData.real_name || yandexUserData.login,
-        avatar_url: avatarUrl,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
+      // Используем UPSERT функцию для безопасного создания/обновления пользователя
+      const { data: upsertResult, error: upsertError } = await supabase
+        .rpc('upsert_user', {
+          p_yandex_id: yandexUserData.id,
+          p_first_name: yandexUserData.first_name || 'Пользователь',
+          p_last_name: yandexUserData.last_name || '',
+          p_display_name: yandexUserData.display_name || yandexUserData.real_name || yandexUserData.login,
+          p_avatar_url: avatarUrl
+        });
 
-      const { data: newUser, error: insertError } = await supabase
-        .from('users')
-        .insert([newUserData])
-        .select('id, yandex_id, first_name, last_name, display_name, avatar_url')
-        .maybeSingle();
-
-      if (insertError) {
-        logger.error('USER', 'Ошибка при создании пользователя', insertError);
-        throw insertError;
+      if (upsertError) {
+        logger.error('USER', 'Ошибка при UPSERT пользователя', upsertError);
+        throw upsertError;
       }
 
-      logger.success('USER', 'Новый пользователь создан', { user_id: newUser.id });
-      return newUser;
+      if (!upsertResult || upsertResult.length === 0) {
+        throw new Error('Не удалось создать или получить пользователя');
+      }
+
+      const user = upsertResult[0];
+      logger.success('USER', 'Пользователь создан/обновлен через UPSERT', { user_id: user.id });
+      return user;
     }
   } catch (error) {
+    // Если это ошибка дублирования ключа и у нас есть попытки, повторим с задержкой
+    if (error.code === '23505' && error.message.includes('users_yandex_id_key') && retryCount < 2) {
+      logger.warn('USER', 'Race condition обнаружен, повторяем попытку', { retry: retryCount + 1, yandex_id: yandexUserData.id });
+      await new Promise(resolve => setTimeout(resolve, 100 * (retryCount + 1))); // 100ms, 200ms задержка
+      return ensureUserInDatabase(yandexUserData, retryCount + 1);
+    }
+    
     logger.error('USER', 'Ошибка в ensureUserInDatabase', error);
     throw error;
   }
