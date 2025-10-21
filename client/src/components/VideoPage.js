@@ -3,30 +3,44 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { VideoService } from '../services/videoService';
 import VideoPlayer from './VideoPlayer';
 import './VideoPage.css';
+import { API_BASE_URL } from '../utils/constants';
 
 const VideoPage = ({ currentUser }) => {
   const { userDisplayName, videoId } = useParams();
   const navigate = useNavigate();
   const [video, setVideo] = useState(null);
+  const [userVideos, setUserVideos] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(-1);
+  const [author, setAuthor] = useState({ display_name: null, avatar: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const loadVideo = async () => {
+    const loadData = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        // Получаем видео по ID
-        const videoData = await VideoService.getVideoById(videoId);
-        
-        if (!videoData) {
+
+        // Загружаем профиль по display_name, чтобы получить всю ленту видео пользователя
+        const resp = await fetch(`${API_BASE_URL}/api/profile/${userDisplayName}`, { credentials: 'include' });
+        if (!resp.ok) {
           setError('Видео не найдено');
           return;
         }
-        
-        setVideo(videoData);
-        
+        const profile = await resp.json();
+        const videos = profile?.videos || [];
+        setUserVideos(videos);
+        setAuthor({ display_name: profile?.user?.display_name, avatar: profile?.user?.avatar });
+
+        // Текущее видео
+        const byId = videos.find(v => v.id === videoId) || await VideoService.getVideoById(videoId);
+        if (!byId) {
+          setError('Видео не найдено');
+          return;
+        }
+        setVideo(byId);
+        const idx = videos.findIndex(v => v.id === byId.id);
+        setCurrentIndex(idx);
       } catch (error) {
         console.error('Ошибка загрузки видео:', error);
         setError('Ошибка загрузки видео');
@@ -35,8 +49,8 @@ const VideoPage = ({ currentUser }) => {
       }
     };
 
-    if (videoId) {
-      loadVideo();
+    if (videoId && userDisplayName) {
+      loadData();
     }
   }, [videoId, userDisplayName]);
 
@@ -49,12 +63,31 @@ const VideoPage = ({ currentUser }) => {
     }
   };
 
+  const goNext = () => {
+    if (!userVideos || userVideos.length === 0) return;
+    if (currentIndex === -1) return;
+    const nextIdx = (currentIndex + 1) % userVideos.length;
+    setCurrentIndex(nextIdx);
+    const nextVideo = userVideos[nextIdx];
+    setVideo(nextVideo);
+    navigate(`/video/${userDisplayName}/${nextVideo.id}`, { replace: true });
+  };
+
+  const goPrev = () => {
+    if (!userVideos || userVideos.length === 0) return;
+    if (currentIndex === -1) return;
+    const prevIdx = (currentIndex - 1 + userVideos.length) % userVideos.length;
+    setCurrentIndex(prevIdx);
+    const prevVideo = userVideos[prevIdx];
+    setVideo(prevVideo);
+    navigate(`/video/${userDisplayName}/${prevVideo.id}`, { replace: true });
+  };
+
 
   if (loading) {
     return (
       <div className="video-page-loading">
-        <div className="loading-spinner">⏳</div>
-        <p>Загрузка видео...</p>
+        <div className="loading-spinner"></div>
       </div>
     );
   }
@@ -80,7 +113,13 @@ const VideoPage = ({ currentUser }) => {
         <VideoPlayer 
           video={video} 
           currentUser={currentUser}
-          onClose={handleClose} 
+          onClose={handleClose}
+          onPrev={userVideos.length > 1 ? goPrev : undefined}
+          onNext={userVideos.length > 1 ? goNext : undefined}
+          hasPrev={userVideos.length > 1}
+          hasNext={userVideos.length > 1}
+          authorDisplayName={author.display_name}
+          authorAvatar={author.avatar}
         />
       </div>
     </div>

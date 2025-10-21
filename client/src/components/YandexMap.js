@@ -85,6 +85,27 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
       controls: []
     });
 
+    // Если переданы координаты через URL-параметры, центрируем карту
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const latParam = params.get('lat');
+      const lonParam = params.get('lon');
+      const zParam = params.get('z');
+      if (latParam && lonParam) {
+        const lat = parseFloat(latParam);
+        const lon = parseFloat(lonParam);
+        const z = zParam ? parseInt(zParam) : 17;
+        if (isFinite(lat) && isFinite(lon)) {
+          const zoom = isFinite(z) ? Math.min(Math.max(z, 12), 19) : 17;
+          mapInstanceRef.current.setCenter([lon, lat], zoom);
+          // Сохраняем состояние
+          const mapState = { center: [lon, lat], zoom };
+          savedMapStateRef.current = mapState;
+          localStorage.setItem('yandexMapState', JSON.stringify(mapState));
+        }
+      }
+    } catch {}
+
     // Инициализация кластерера
     clustererRef.current = new ymaps.Clusterer({
       preset: 'islands#invertedVioletClusterIcons',

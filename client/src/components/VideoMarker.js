@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { VideoService } from '../services/videoService';
 import './VideoMarker.css';
 
@@ -6,6 +6,27 @@ const VideoMarker = ({ video, onClose }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(video.likes_count);
+  const [highlight, setHighlight] = useState(false);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const latParam = params.get('lat');
+      const lonParam = params.get('lon');
+      if (latParam && lonParam && video?.latitude != null && video?.longitude != null) {
+        const lat = parseFloat(latParam);
+        const lon = parseFloat(lonParam);
+        // Сравнение с небольшим допуском (~50м)
+        const dLat = Math.abs(lat - Number(video.latitude));
+        const dLon = Math.abs(lon - Number(video.longitude));
+        if (dLat < 0.0005 && dLon < 0.0005) {
+          setHighlight(true);
+          const t = setTimeout(() => setHighlight(false), 10000);
+          return () => clearTimeout(t);
+        }
+      }
+    } catch {}
+  }, [video]);
 
   const handlePlay = () => {
     setIsPlaying(true);
@@ -43,7 +64,7 @@ const VideoMarker = ({ video, onClose }) => {
   };
 
   return (
-    <div className="video-marker-popup">
+    <div className={`video-marker-popup${highlight ? ' highlight' : ''}`}>
       <div className="video-marker-header">
         <div className="video-marker-user">
           <img 

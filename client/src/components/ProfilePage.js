@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import VideoPlayer from './VideoPlayer';
 import './ProfilePage.css';
@@ -16,9 +16,31 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDropdownMenu, setShowDropdownMenu] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const [deletingVideo, setDeletingVideo] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [videoToDelete, setVideoToDelete] = useState(null);
+  const videoRefs = useRef({});
+
+  const handlePreviewEnter = (id) => {
+    try {
+      const el = videoRefs.current[id];
+      if (el) {
+        el.currentTime = 0;
+        el.play().catch(() => {});
+      }
+    } catch {}
+  };
+
+  const handlePreviewLeave = (id) => {
+    try {
+      const el = videoRefs.current[id];
+      if (el) {
+        el.pause();
+        el.currentTime = 0;
+      }
+    } catch {}
+  };
 
   // Загрузка данных профиля с сервера
   useEffect(() => {
@@ -64,8 +86,32 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
 
   // Обработчики событий
   const handleVideoClick = (video) => {
-    if (video.user_id && video.id && profileData?.user?.display_name) {
+    // Открываем ленту плеера поверх профиля
+    const idx = profileData?.videos?.findIndex(v => v.id === video.id) ?? -1;
+    setSelectedIndex(idx);
+    setSelectedVideo(video);
+    if (profileData?.user?.display_name) {
       navigate(`/video/${profileData.user.display_name}/${video.id}`);
+    }
+  };
+
+  const handleNext = () => {
+    if (!profileData?.videos || selectedIndex < 0) return;
+    const nextIdx = (selectedIndex + 1) % profileData.videos.length;
+    setSelectedIndex(nextIdx);
+    setSelectedVideo(profileData.videos[nextIdx]);
+    if (profileData?.user?.display_name) {
+      navigate(`/video/${profileData.user.display_name}/${profileData.videos[nextIdx].id}`);
+    }
+  };
+
+  const handlePrev = () => {
+    if (!profileData?.videos || selectedIndex < 0) return;
+    const prevIdx = (selectedIndex - 1 + profileData.videos.length) % profileData.videos.length;
+    setSelectedIndex(prevIdx);
+    setSelectedVideo(profileData.videos[prevIdx]);
+    if (profileData?.user?.display_name) {
+      navigate(`/video/${profileData.user.display_name}/${profileData.videos[prevIdx].id}`);
     }
   };
 
@@ -188,7 +234,10 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
             </button>
           </div>
           
-          <div className="profile-error">          
+          <div className="profile-error">  
+            {error !== 'Требуется авторизация' && (
+              <div class="user-name" style={{ textAlign: 'center' }}>{error}</div>
+            )}
             {error === 'Требуется авторизация' ? (
               <div className="auth-error-section">
                 <button 
@@ -200,12 +249,7 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
                 </button>
               </div>
             ) : (
-              <button 
-                onClick={() => navigate('/')}
-                className="home-button"
-              >
-                Вернуться на главную
-              </button>
+              <></>
             )}
           </div>
         </div>
@@ -285,7 +329,7 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
                     >
                       🔗 Яндекс профиль
                     </button>
-                    {/* Кнопка выхода - только для своего профиля */}
+                    {/* Кнопка выхода доступна только если это профиль текущего пользователя */}
                     {isCurrentUserProfile && (
                       <button
                         className="dropdown-menu-item logout-item"
@@ -345,9 +389,18 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
             {videos.length > 0 ? (
               <div className="videos-grid">
                 {videos.map((video) => (
-                  <div key={video.id} className="video-card" onClick={() => handleVideoClick(video)}>
+                  <div key={video.id} className="video-card" onClick={() => handleVideoClick(video)} onMouseEnter={() => handlePreviewEnter(video.id)} onMouseLeave={() => handlePreviewLeave(video.id)}>
                     <div className="video-thumbnail">
-                      <div className="video-thumbnail-placeholder">🎥</div>
+                      <video
+                        ref={(el) => { if (el) videoRefs.current[video.id] = el; }}
+                        src={video.video_url}
+                        muted
+                        playsInline
+                        loop
+                        preload="metadata"
+                        className="video-thumb-video"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }}
+                      />
                     </div>
                     <div className="video-info">
                       <h4 className="video-title">{video.description || 'Без описания'}</h4>
@@ -364,8 +417,8 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
                       )}
                       
                       <div className="video-stats">
-                        <span className="video-likes">{video.likes_count || 0}</span>
-                        <span className="video-views">{video.views_count || 0}</span>
+                        <span className="video-likes">❤️{video.likes_count || 0}</span>
+                        <span className="video-views">👁️{ video.views_count || 0}</span>
                       </div>
                     </div>
                     
@@ -389,8 +442,14 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
             ) : (
               <div className="no-videos">
                 <div className="no-videos-icon">📹</div>
-                <p>У вас пока нет загруженных видео</p>
-                <p className="no-videos-hint">Загрузите первое видео на карте!</p>
+                {isCurrentUserProfile ? (
+                  <>
+                    <p>У вас пока нет загруженных видео</p>
+                    <p className="no-videos-hинt">Загрузите первое видео на карте!</p>
+                  </>
+                ) : (
+                  <p>Пользователь пока не выложил ни одного видео</p>
+                )}
               </div>
             )}
           </div>
@@ -460,7 +519,13 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
         <VideoPlayer 
           video={selectedVideo} 
           currentUser={user}
-          onClose={() => setSelectedVideo(null)} 
+          onClose={() => { setSelectedVideo(null); setSelectedIndex(-1); }}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          hasPrev={profileData?.videos?.length > 1}
+          hasNext={profileData?.videos?.length > 1}
+          authorDisplayName={profileData?.user?.display_name}
+          authorAvatar={profileData?.user?.avatar}
         />
       )}
     </div>

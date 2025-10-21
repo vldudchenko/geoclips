@@ -5,8 +5,9 @@ import { UserService } from '../services/userService';
 import { ServerApi } from '../services/serverApi';
 import './VideoPlayer.css';
 
-const VideoPlayer = ({ video, onClose, currentUser }) => {
+const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = false, hasNext = false, authorDisplayName, authorAvatar }) => {
   const videoRef = useRef(null);
+  const lastNavRef = useRef(0);
   const navigate = useNavigate();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
@@ -25,17 +26,18 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
 
   // Получаем данные пользователя как в профиле
   useEffect(() => {
-    if (!video?.users) return;
-
-    // Используем данные из join запроса (самый надежный способ)
-    const userData = {
-      display_name: video.users.display_name || 'Пользователь',
-      avatar_url: video.users.avatar_url
-    };
-    
-    setUserDisplayName(userData.display_name);
-    setUserAvatar(userData.avatar_url);
-  }, [video]);
+    if (video?.users) {
+      const userData = {
+        display_name: video.users.display_name || 'Пользователь',
+        avatar_url: video.users.avatar_url
+      };
+      setUserDisplayName(userData.display_name);
+      setUserAvatar(userData.avatar_url);
+      return;
+    }
+    if (authorDisplayName) setUserDisplayName(authorDisplayName);
+    if (authorAvatar) setUserAvatar(authorAvatar);
+  }, [video, authorDisplayName, authorAvatar]);
 
   // Загружаем теги для видео
   useEffect(() => {
@@ -57,19 +59,17 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
   // Загружаем состояние лайка при открытии видео
   useEffect(() => {
     const loadLikeStatus = async () => {
-      if (!video?.id || !currentUser?.accessToken) return;
-      
+      if (!video?.id) return;
       try {
-        const liked = await VideoService.isVideoLiked(video.id, currentUser.accessToken);
+        const liked = await VideoService.isVideoLiked(video.id);
         setIsLiked(liked);
       } catch (error) {
         console.error('Ошибка при загрузке состояния лайка:', error);
         setIsLiked(false);
       }
     };
-
     loadLikeStatus();
-  }, [video?.id, currentUser?.accessToken]);
+  }, [video?.id]);
 
 
   const handleClickOutside = (e) => {
@@ -103,20 +103,54 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
     }
   }, [video, volume]);
 
+  // Навигация колесом мыши и клавишами (стрелки вверх/вниз)
+  useEffect(() => {
+    const onWheel = (e) => {
+      if (!onPrev && !onNext) return;
+      const now = Date.now();
+      if (now - lastNavRef.current < 400) return; // debounce
+      if (e.deltaY > 30) {
+        lastNavRef.current = now;
+        onNext && onNext();
+      } else if (e.deltaY < -30) {
+        lastNavRef.current = now;
+        onPrev && onPrev();
+      }
+    };
+    const onKey = (e) => {
+      if (!onPrev && !onNext) return;
+      const now = Date.now();
+      if (now - lastNavRef.current < 250) return;
+      if (e.key === 'ArrowDown') {
+        lastNavRef.current = now;
+        onNext && onNext();
+      } else if (e.key === 'ArrowUp') {
+        lastNavRef.current = now;
+        onPrev && onPrev();
+      }
+    };
+    window.addEventListener('wheel', onWheel, { passive: true });
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onPrev, onNext]);
+
   const handleLike = async () => {
-    if (!video?.id || !currentUser?.accessToken || isLiking) return;
+    if (!video?.id || isLiking) return;
     
     setIsLiking(true);
     
     try {
       if (isLiked) {
         // Убираем лайк
-        const result = await VideoService.unlikeVideo(video.id, currentUser.accessToken);
+        const result = await VideoService.unlikeVideo(video.id);
         setIsLiked(false);
         setLikesCount(result.likesCount || likesCount - 1);
       } else {
         // Добавляем лайк
-        const result = await VideoService.likeVideo(video.id, currentUser.accessToken);
+        const result = await VideoService.likeVideo(video.id);
         setIsLiked(true);
         setLikesCount(result.likesCount || likesCount + 1);
       }
@@ -164,6 +198,17 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
       console.error('Ошибка при переходе на профиль:', error);
       // Fallback на ID при ошибке
       navigate(`/profile/${video.user_id}`);
+    }
+  };
+
+  const handleGoToMap = (e) => {
+    e.stopPropagation();
+    if (video?.latitude != null && video?.longitude != null) {
+      const lat = video.latitude;
+      const lon = video.longitude;
+      navigate(`/?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&z=17`);
+    } else {
+      navigate('/');
     }
   };
 
@@ -227,6 +272,21 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
   return (
     <div className="tiktok-player-overlay" onClick={handleClickOutside}>
       <div className="tiktok-player-container">
+        {/* Навигация по ленте (как YouTube Shorts): стрелки справа, вверх/вниз */}
+        {(hasPrev || hasNext) && (
+          <div className="tiktok-nav-vertical" onClick={(e) => e.stopPropagation()}>
+            {hasPrev && (
+              <div className="tiktok-nav-button up" onClick={() => { onPrev && onPrev(); }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+              </div>
+            )}
+            {hasNext && (
+              <div className="tiktok-nav-button down" onClick={() => { onNext && onNext(); }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+              </div>
+            )}
+          </div>
+        )}
         {/* Кнопка назад (улучшенная видимость) */}
         <div className="tiktok-back-button" onClick={onClose}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
@@ -269,6 +329,8 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
             />
           </div>
 
+          
+
           {/* Кнопка лайка */}
           <div 
             className={`tiktok-action-button ${isLiking ? 'loading' : ''} ${!currentUser ? 'disabled' : ''}`} 
@@ -285,20 +347,20 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
             <span className="action-count">{isLiking ? '...' : likesCount}</span>
           </div>
 
-          {/* Кнопка комментариев */}
+          {/* Кнопка комментариев
           <div className="tiktok-action-button">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
               <path d="M21.99 4c0-1.1-.89-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18z"/>
             </svg>
             <span className="action-count">0</span>
-          </div>
+          </div> */}
 
-          {/* Кнопка поделиться */}
+          {/* Кнопка поделиться
           <div className="tiktok-action-button">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
               <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
             </svg>
-          </div>
+          </div> */}
 
           {/* Ползунок громкости */}
           <div className="tiktok-volume-control">
@@ -327,6 +389,13 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
               className="volume-slider vertical-slider"
               orient="vertical"
             />
+          </div>
+
+          {/* Переход к метке на карте */}
+          <div className="tiktok-action-button" onClick={handleGoToMap} title="Показать на карте">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
+            </svg>
           </div>
 
           {/* Кнопка удаления - только для своих видео */}

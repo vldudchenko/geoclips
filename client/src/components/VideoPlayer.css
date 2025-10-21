@@ -194,6 +194,36 @@
   border-radius: 0 0 12px 12px;
 }
 
+/* Навигация справа, как в Shorts */
+.tiktok-nav-vertical {
+  position: absolute;
+  right: -56px; /* вынесено за пределы плеера справа */
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 30;
+}
+
+.tiktok-nav-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(255,255,255,0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tiktok-nav-button:hover {
+  background: rgba(0,0,0,0.85);
+  transform: scale(1.08);
+}
+
 .tiktok-author-info {
   margin-bottom: 8px;
 }

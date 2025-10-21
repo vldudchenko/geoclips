@@ -1245,7 +1245,7 @@ code {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  color: #fff;
+  /* color: #fff; */
   padding: 10px 16px;
   border-radius: 16px;
   font-size: 13px;

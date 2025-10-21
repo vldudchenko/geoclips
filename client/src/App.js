@@ -160,8 +160,7 @@ const AppContent = () => {
   if (isLoading) {
     return (
       <div className="loading-screen">
-        <div className="loading-spinner">⏳</div>
-        <p>Загрузка карты...</p>
+        <div className="loading-spinner"></div>
       </div>
     );
   }
