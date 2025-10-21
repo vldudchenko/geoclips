@@ -22,7 +22,8 @@ const config = {
   yandex: {
     clientId: process.env.YANDEX_CLIENT_ID || '',
     clientSecret: process.env.YANDEX_CLIENT_SECRET || '',
-    apiKey: process.env.YANDEX_API_KEY || ''
+    apiKey: process.env.YANDEX_API_KEY || '',
+    redirectUri: process.env.YANDEX_REDIRECT_URI || ''
   },
 
   // Session

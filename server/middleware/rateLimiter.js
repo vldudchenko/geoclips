@@ -151,21 +151,21 @@ const limiters = {
   // Счётчик для API
   api: rateLimiter.create({
     windowMs: 60 * 1000, // 1 минута
-    maxRequests: 60,
+    maxRequests: 200,
     message: 'Слишком много запросов к API. Попробуйте через минуту.'
   }),
 
   // Счётчик для загрузки файлов
   upload: rateLimiter.create({
     windowMs: 60 * 60 * 1000, // 1 час
-    maxRequests: 10,
+    maxRequests: 50,
     message: 'Слишком много загрузок. Попробуйте через час.'
   }),
 
   // Счётчик для чтения данных
   read: rateLimiter.create({
     windowMs: 60 * 1000, // 1 минута
-    maxRequests: 120,
+    maxRequests: 200,
     message: 'Слишком много запросов. Попробуйте через минуту.'
   })
 };

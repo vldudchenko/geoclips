@@ -143,8 +143,13 @@ app.use('/admin', limiters.read, adminRoutes);
 
 // Обработка корневого пути - перенаправляем на админку
 app.get('/', (req, res) => {
-  logger.info('SERVER', 'Запрос на корневой путь - перенаправляем на /admin');
-  res.redirect('/admin');
+  if (config.nodeEnv === 'production') {
+    // В продакшене отдаём SPA клиент
+    res.sendFile(path.join(__dirname, '../client/build/index.html'));
+  } else {
+    logger.info('SERVER', 'Запрос на корневой путь - перенаправляем на /admin');
+    res.redirect('/admin');
+  }
 });
 
 // Debug роуты (только в режиме разработки)
@@ -156,6 +161,20 @@ if (config.nodeEnv !== 'production') {
 
 // Обработка ошибок multer
 app.use(handleMulterError);
+
+// Раздача статики клиента (production)
+if (config.nodeEnv === 'production') {
+  const clientBuildPath = path.join(__dirname, '../client/build');
+  app.use(express.static(clientBuildPath));
+  // SPA fallback для всех путей, кроме API/ADMIN/UPLOADS
+  app.get('*', (req, res, next) => {
+    const p = req.path || '';
+    if (p.startsWith('/api') || p.startsWith('/auth') || p.startsWith('/admin') || p.startsWith('/uploads')) {
+      return next();
+    }
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+}
 
 // 404 handler
 app.use(notFoundHandler);

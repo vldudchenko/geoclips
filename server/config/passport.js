@@ -18,6 +18,7 @@ passport.use('yandex', new OAuth2Strategy({
   clientID: config.yandex.clientId,
   clientSecret: config.yandex.clientSecret,
   callbackURL: `${config.baseUrl}/auth/yandex/callback`
+  
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     logger.auth('Начало авторизации через Яндекс');
