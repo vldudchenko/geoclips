@@ -575,6 +575,50 @@ router.get('/', (req, res) => {
 });
 
 /**
+ * Регистрация просмотра видео
+ */
+router.post('/videos/:videoId/view', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    if (!videoId) return res.status(400).json({ error: 'videoId обязателен' });
+
+    // Авторизованный пользователь (если есть)
+    const userId = req.user?.dbUser?.id || null;
+
+    // Не засчитываем просмотры для неавторизованных пользователей
+    if (!userId) {
+      return res.json({ success: true, skipped: true });
+    }
+
+    // Пытаемся записать просмотр; для авторизованных действует уникальность (video_id, user_id)
+    const { error: insertError } = await supabase
+      .from('video_views')
+      .insert([{ video_id: videoId, user_id: userId }]);
+
+    if (insertError && insertError.code !== '23505') {
+      // 23505 = уникальное ограничение; игнорируем повтор
+      logger.warn('API', 'Ошибка записи просмотра', insertError);
+    }
+
+    // Возвращаем актуальный счетчик
+    const { data: videoRow, error: selectError } = await supabase
+      .from('videos')
+      .select('views_count')
+      .eq('id', videoId)
+      .maybeSingle();
+
+    if (selectError) {
+      return res.json({ success: true });
+    }
+
+    res.json({ success: true, viewsCount: videoRow?.views_count || 0 });
+  } catch (error) {
+    logger.error('API', 'Ошибка записи просмотра', error);
+    res.status(500).json({ error: 'Ошибка записи просмотра' });
+  }
+});
+
+/**
  * Получить видео по радиусу от точки (центра карты)
  * GET /api/videos/near?lat=..&lon=..&radius=..
  */

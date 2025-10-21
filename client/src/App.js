@@ -46,7 +46,7 @@ const HomePage = ({ user, onLogout, ymaps, mapData, setMapData, error, setError,
       // Видео успешно загружено
     } catch (error) {
       console.error('❌ App: Ошибка при загрузке видео:', error);
-      setError('Ошибка при загрузке видео: ' + error.message);
+
     }
   };
 

@@ -177,6 +177,9 @@ const UploadForm = ({ coordinates, onSubmit, onCancel, user }) => {
       
       // Получаем публичный URL видео
       const videoUrl = VideoService.getVideoUrl(uploadResult.path);
+      if (!videoUrl) {
+        throw new Error('Не удалось получить публичный URL загруженного видео');
+      }
       
       // Подготавливаем данные для БД
       const videoData = {
@@ -203,6 +206,9 @@ const UploadForm = ({ coordinates, onSubmit, onCancel, user }) => {
       // Небольшая задержка для показа финального статуса
       await new Promise(resolve => setTimeout(resolve, 1000));
       
+      // Принудительно закрываем форму до навигации
+      try { onCancel && onCancel(); } catch {}
+
       // Переход в профиль пользователя
       if (syncedUser?.display_name) {
         navigate(`/profile/${syncedUser.display_name}`);

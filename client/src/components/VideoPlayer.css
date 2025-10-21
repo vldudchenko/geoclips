@@ -293,6 +293,13 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
+.tiktok-video-date {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  margin-top: 4px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
 /* Адаптивность для больших экранов */
 @media (min-width: 768px) {
   .tiktok-player-container {
@@ -347,8 +354,8 @@
   gap: 8px;
   padding: 8px;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .volume-icon {

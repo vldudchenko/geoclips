@@ -11,7 +11,7 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
   const navigate = useNavigate();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState(video?.likes_count || 0);
+  const [likesCount, setLikesCount] = useState(video?.likes_count || "");
   const [isLiking, setIsLiking] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState('user');
   const [userAvatar, setUserAvatar] = useState(null);
@@ -269,6 +269,16 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
     // navigate(`/search?tag=${encodeURIComponent(tagName)}`);
   };
 
+  const formatPublishedAt = (dt) => {
+    try {
+      if (!dt) return '';
+      const d = new Date(dt);
+      return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+      return '';
+    }
+  };
+
   return (
     <div className="tiktok-player-overlay" onClick={handleClickOutside}>
       <div className="tiktok-player-container">
@@ -427,12 +437,16 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
                 </span>
               ))}
             </div>
-          )}
-          
+          )}        
+
+          {/* Дата публикации */}
+          <div className="tiktok-video-date">
+            Опубликовано: {formatPublishedAt(video.updated_at || video.created_at)}
+          </div>
           <div className="tiktok-video-stats">
             {video.views_count || 0} просмотров
-          </div>
         </div>
+        </div>        
       </div>
 
       {/* Модальное окно подтверждения удаления */}

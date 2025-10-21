@@ -41,6 +41,9 @@ const VideoPage = ({ currentUser }) => {
         setVideo(byId);
         const idx = videos.findIndex(v => v.id === byId.id);
         setCurrentIndex(idx);
+
+        // Регистрируем просмотр (один раз при загрузке видео)
+        try { await VideoService.recordView(byId.id); } catch {}
       } catch (error) {
         console.error('Ошибка загрузки видео:', error);
         setError('Ошибка загрузки видео');

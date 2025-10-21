@@ -8,7 +8,7 @@ import { calculateDistance } from '../utils/geoUtils';
 import VideoPlayer from './VideoPlayer';
 import logger from '../utils/logger';
 
-const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigateProfile, isAuthenticated }) => {
+const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigateProfile, isAuthenticated, initialEditMode = false }) => {
   const navigate = useNavigate();
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -21,7 +21,7 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
   const [videos, setVideos] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [isLoadingVideos, setIsLoadingVideos] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(() => Boolean(initialEditMode && isAuthenticated));
   const [userAvatarsCache, setUserAvatarsCache] = useState(() => {
     // Загружаем кэш аватаров из localStorage при инициализации
     try {
@@ -67,6 +67,13 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
   useEffect(() => {
     logger.video('selectedVideo изменился', { selectedVideo });
   }, [selectedVideo]);
+
+  // Включаем режим редактирования при заходе на /addvideo (если авторизован)
+  useEffect(() => {
+    if (initialEditMode && isAuthenticated) {
+      setIsEditMode(true);
+    }
+  }, [initialEditMode, isAuthenticated]);
 
   // Инициализация карты
   useEffect(() => {

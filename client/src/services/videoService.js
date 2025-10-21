@@ -126,23 +126,44 @@ export class VideoService {
    */
   static async uploadVideo(videoData) {
     try {
-      // Фильтруем только поля, которые должны быть в базе данных
-      const { tags, message, success, ...videoDataForDb } = videoData;
+      // Явно белый список полей для вставки (защита от лишних полей вроде File video)
+      const { tags } = videoData;
+      const allowedKeys = [
+        'id',
+        'user_id',
+        'description',
+        'video_url',
+        'latitude',
+        'longitude',
+        'likes_count',
+        'views_count',
+        'created_at',
+        'updated_at'
+      ];
+      const videoDataForDb = {};
+      for (const key of allowedKeys) {
+        if (videoData[key] !== undefined) {
+          videoDataForDb[key] = videoData[key];
+        }
+      }
+      // Нормализуем координаты в числа
+      if (videoDataForDb.latitude !== undefined) videoDataForDb.latitude = parseFloat(videoDataForDb.latitude);
+      if (videoDataForDb.longitude !== undefined) videoDataForDb.longitude = parseFloat(videoDataForDb.longitude);
       
       const { data, error } = await supabase
         .from('videos')
-        .insert([videoDataForDb])
-        .select(this.VIDEO_SELECT_FIELDS)
-        .maybeSingle();
+        .insert([videoDataForDb]); // без select, избегаем сложных представлений при вставке
 
       if (error) this.handleError(error, 'uploadVideo');
       
       // Если есть теги, добавляем их
-      if (data && tags && tags.length > 0) {
-        await this.addTagsToVideo(data.id, tags);
+      const insertedId = (Array.isArray(data) && data[0]?.id) || videoDataForDb.id;
+      if (insertedId && tags && tags.length > 0) {
+        await this.addTagsToVideo(insertedId, tags);
       }
       
-      return data;
+      // Возвращаем минимальный объект (без повторной выборки, чтобы исключить схему по связям)
+      return { ...videoDataForDb, id: insertedId };
     } catch (error) {
       this.handleError(error, 'uploadVideo');
     }
@@ -238,7 +259,8 @@ export class VideoService {
         this.handleError(error, 'uploadVideoFile');
       }
 
-      return data;
+      // Возвращаем гарантированно путь, даже если SDK вернул пустой data
+      return { path: fileName };
     } catch (error) {
       this.handleError(error, 'uploadVideoFile');
     }
@@ -357,6 +379,23 @@ export class VideoService {
     }
   }
 
+  // Зарегистрировать просмотр видео (через серверный API)
+  static async recordView(videoId) {
+    try {
+      const response = await fetch(`/api/videos/${videoId}/view`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data?.viewsCount ?? null;
+    } catch (e) {
+      console.error('Error recording view:', e);
+      return null;
+    }
+  }
+
 
   /**
    * Получить видео по ID
@@ -387,7 +426,6 @@ export class VideoService {
           tags (
             id,
             name,
-            slug,
             usage_count
           )
         `)
