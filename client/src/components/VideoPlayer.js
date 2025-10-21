@@ -241,6 +241,8 @@ const VideoPlayer = ({ video, onClose, currentUser }) => {
             src={video.video_url}
             autoPlay
             loop
+            playsInline
+            preload="metadata"
             className="tiktok-video"
             onClick={handleVideoClick}
           >

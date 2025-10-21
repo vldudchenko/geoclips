@@ -12,6 +12,7 @@ const supabase = require('../config/supabase');
 const { validateAddress, validateAccessToken } = require('../middleware/validation');
 const { requireAuth } = require('../middleware/auth');
 const { updateUserBasicData } = require('../services/userService');
+const { isValidCoordinates, calculateDistance } = require('../utils/geoUtils');
 
 /**
  * Геокодирование адреса
@@ -297,7 +298,10 @@ router.get('/profile/:identifier', async (req, res) => {
       targetUserId = identifier;
       isCurrentUserProfile = currentUserId === identifier;
     } else if (identifier.includes('_') || (identifier.includes('-') && !identifier.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i))) {
-      // Это токен доступа
+      // Это выглядит как токен доступа — в продакшене запрещаем, в dev можно оставить для отладки (фича-флаг)
+      if (config.nodeEnv === 'production' || !config.features.allowProfileLookupByAccessToken) {
+        return res.status(400).json({ error: 'Идентификатор профиля недопустим' });
+      }
       try {
         const response = await axios.get('https://login.yandex.ru/info?format=json', {
           headers: {
@@ -568,6 +572,72 @@ router.get('/videos/:videoId/like-status', requireAuth, async (req, res) => {
  */
 router.get('/', (req, res) => {
   res.json({ message: 'API Яндекс карт работает!' });
+});
+
+/**
+ * Получить видео по радиусу от точки (центра карты)
+ * GET /api/videos/near?lat=..&lon=..&radius=..
+ */
+router.get('/videos/near', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    let radius = parseFloat(req.query.radius || '1');
+
+    if (!isFinite(lat) || !isFinite(lon) || !isValidCoordinates(lat, lon)) {
+      return res.status(400).json({ error: 'Неверные координаты' });
+    }
+
+    if (!isFinite(radius) || radius <= 0) radius = 1;
+    // Ограничиваем радиус, чтобы не перегружать БД
+    radius = Math.min(Math.max(radius, 0.2), 25);
+
+    const cacheKey = `videos_near_${lat.toFixed(5)}_${lon.toFixed(5)}_${radius.toFixed(2)}`;
+    const cached = cacheManager.get(cacheKey);
+    if (cached) {
+      return res.json({ success: true, fromCache: true, videos: cached });
+    }
+
+    // Fallback без RPC: bbox + фильтрация по расстоянию
+    const kmPerDegLat = 111;
+    const cosLat = Math.max(0.01, Math.cos(lat * Math.PI / 180));
+    const kmPerDegLon = 111 * cosLat;
+    const dLat = radius / kmPerDegLat;
+    const dLon = radius / kmPerDegLon;
+    const minLat = lat - dLat;
+    const maxLat = lat + dLat;
+    const minLon = lon - dLon;
+    const maxLon = lon + dLon;
+
+    const { data, error } = await supabase
+      .from('videos')
+      .select('id, user_id, description, video_url, latitude, longitude, likes_count, views_count, created_at, updated_at')
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null)
+      .gte('latitude', minLat)
+      .lte('latitude', maxLat)
+      .gte('longitude', minLon)
+      .lte('longitude', maxLon)
+      .order('created_at', { ascending: false })
+      .limit(1000);
+
+    if (error) {
+      logger.error('API', 'Ошибка выборки видео (bbox)', error);
+      return res.status(500).json({ error: 'Ошибка получения видео' });
+    }
+
+    const filtered = (data || []).filter(v => {
+      if (!isFinite(v.latitude) || !isFinite(v.longitude)) return false;
+      const dist = calculateDistance(lat, lon, v.latitude, v.longitude);
+      return dist <= radius;
+    });
+
+    cacheManager.set(cacheKey, filtered, 30 * 1000);
+    res.json({ success: true, fromCache: false, videos: filtered });
+  } catch (error) {
+    logger.error('API', 'Ошибка /api/videos/near', error);
+    res.status(500).json({ error: 'Ошибка сервера при получении видео' });
+  }
 });
 
 module.exports = router;

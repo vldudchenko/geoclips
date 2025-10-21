@@ -7,8 +7,10 @@
 import * as SHARED from '../shared/constants';
 
 // API URLs (специфично для клиента)
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.31.164:5000';
-export const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'http://192.168.31.164:5000';
+const host = (typeof window !== 'undefined' && window.location && window.location.hostname) ? window.location.hostname : 'localhost';
+const defaultServer = `http://${host}:5000`;
+export const API_BASE_URL = process.env.REACT_APP_API_URL || defaultServer;
+export const SERVER_URL = process.env.REACT_APP_SERVER_URL || defaultServer;
 
 // Экспортируем shared константы
 export const {

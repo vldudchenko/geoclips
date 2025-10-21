@@ -3,25 +3,58 @@
  */
 
 const logger = require('../utils/logger');
+const axios = require('axios');
+const config = require('../config/environment');
+const { ensureUserInDatabase } = require('../services/userService');
 
 /**
  * Проверка, что пользователь авторизован
  */
-const requireAuth = (req, res, next) => {
-  if (req.isAuthenticated && req.isAuthenticated()) {
-    return next();
+const requireAuth = async (req, res, next) => {
+  try {
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      return next();
+    }
+
+    // Dev-путь: поддержка Bearer токена Яндекс для совместимости клиента
+    const authHeader = req.get('authorization') || req.get('Authorization');
+    const allowBearer = config.nodeEnv !== 'production' || config.features.allowProfileLookupByAccessToken;
+    if (allowBearer && authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring('Bearer '.length).trim();
+      if (token) {
+        try {
+          const response = await axios.get('https://login.yandex.ru/info', {
+            headers: { Authorization: `OAuth ${token}` }
+          });
+          const yandexUser = response.data;
+          const dbUser = await ensureUserInDatabase(yandexUser);
+          req.user = {
+            id: yandexUser.id,
+            displayName: yandexUser.display_name || yandexUser.real_name || yandexUser.login,
+            photos: [{ value: `https://avatars.yandex.net/get-yapic/${yandexUser.default_avatar_id}/islands-200` }],
+            accessToken: token,
+            dbUser
+          };
+          return next();
+        } catch (e) {
+          logger.warn('AUTH', 'Неверный Bearer токен', { message: e.message });
+        }
+      }
+    }
+
+    logger.warn('AUTH', 'Попытка доступа без авторизации', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
+    res.status(401).json({ 
+      error: 'Требуется авторизация',
+      code: 'UNAUTHORIZED'
+    });
+  } catch (error) {
+    logger.error('AUTH', 'Ошибка в requireAuth', error);
+    res.status(500).json({ error: 'Ошибка проверки авторизации' });
   }
-  
-  logger.warn('AUTH', 'Попытка доступа без авторизации', {
-    url: req.url,
-    method: req.method,
-    ip: req.ip
-  });
-  
-  res.status(401).json({ 
-    error: 'Требуется авторизация',
-    code: 'UNAUTHORIZED'
-  });
 };
 
 /**

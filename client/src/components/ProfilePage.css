@@ -33,13 +33,11 @@
 }
 
 .profile-type-badge.own-profile {
-  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
   color: white;
   border: 1px solid #4CAF50;
 }
 
 .profile-type-badge.other-profile {
-  background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
   color: white;
   border: 1px solid #2196F3;
 }
@@ -202,7 +200,6 @@
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
   padding: 8px;
   color: white;
   opacity: 0;
@@ -315,12 +312,7 @@
 /* Стили для страницы профиля */
 .profile-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, 
-    #667eea 0%, 
-    #764ba2 25%, 
-    #f093fb 50%, 
-    #f5576c 75%, 
-    #4facfe 100%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
   background-size: 400% 400%;
   animation: gradientShift 15s ease infinite;
   padding: 20px;

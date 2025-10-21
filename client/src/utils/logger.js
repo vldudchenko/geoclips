@@ -1,5 +1,5 @@
 // Централизованное логирование для клиентского приложения
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.31.164:5000';
+import { API_BASE_URL } from './constants';
 
 class Logger {
   constructor() {

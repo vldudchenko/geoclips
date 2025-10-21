@@ -37,8 +37,7 @@ router.get('/', async (req, res) => {
       logger.warn('ADMIN', 'Пользователь не авторизован, показываем страницу входа', {
         isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : false,
         hasUser: !!req.user,
-        sessionId: req.sessionID,
-        cookies: req.headers.cookie
+        sessionId: req.sessionID
       });
       const loginHtml = `
         <!DOCTYPE html>

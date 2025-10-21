@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import VideoPlayer from './VideoPlayer';
 import './ProfilePage.css';
+import { API_BASE_URL } from '../utils/constants';
 
 const ProfilePage = ({ user, onLogout, accessToken }) => {
   const navigate = useNavigate();
   
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.31.164:5000';
+  
   
   // Состояние компонента
   const [profileData, setProfileData] = useState(null);
@@ -26,7 +27,7 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
         setIsLoading(true);
         setError(null);
 
-        // Определяем идентификатор для запроса
+        // Идентификатор профиля: display_name/UUID из URL или 'current' для своего профиля
         let identifier = accessToken || 'current';
         
         const response = await fetch(`${API_BASE_URL}/api/profile/${identifier}`, {

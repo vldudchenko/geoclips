@@ -71,16 +71,20 @@ export class VideoService {
   // Получить видео по координатам (в радиусе)
   static async getVideosByLocation(latitude, longitude, radiusKm = 1) {
     try {
-      // Используем PostGIS функцию для поиска в радиусе
-      const { data, error } = await supabase
-        .rpc('get_videos_in_radius', {
-          lat: latitude,
-          lng: longitude,
-          radius: radiusKm
-        });
-
-      if (error) throw error;
-      return data;
+      const params = new URLSearchParams({
+        lat: String(latitude),
+        lon: String(longitude),
+        radius: String(radiusKm)
+      });
+      const response = await fetch(`/api/videos/near?${params.toString()}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Ошибка получения видео');
+      }
+      const payload = await response.json();
+      return payload.videos || [];
     } catch (error) {
       console.error('Error fetching videos by location:', error);
       // Fallback: получаем все видео и фильтруем на клиенте
@@ -287,9 +291,9 @@ export class VideoService {
       const response = await fetch(`/api/videos/${videoId}/like`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        }
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -311,9 +315,9 @@ export class VideoService {
       const response = await fetch(`/api/videos/${videoId}/like`, {
         method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        }
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -335,9 +339,9 @@ export class VideoService {
       const response = await fetch(`/api/videos/${videoId}/like-status`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        }
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
       });
 
       if (!response.ok) {

@@ -157,8 +157,18 @@ const setSecurityHeaders = (req, res, next) => {
   // Referrer Policy
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   
-  // Content Security Policy (базовая)
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' https://api-maps.yandex.ru;");
+  // Content Security Policy (расширенная)
+  // Разрешаем загрузку карт, аватаров Yandex и Supabase storage
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://api-maps.yandex.ru",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https: https://avatars.yandex.net https://*.supabase.co",
+    "connect-src 'self' https://*.supabase.co https://login.yandex.ru https://oauth.yandex.ru",
+    "font-src 'self' data:",
+    "frame-ancestors 'none'"
+  ].join('; ');
+  res.setHeader('Content-Security-Policy', csp);
   
   next();
 };

@@ -29,5 +29,9 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "passport-oauth2": "^1.8.0"
   }
 }

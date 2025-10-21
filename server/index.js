@@ -7,6 +7,10 @@ const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
 const path = require('path');
+const helmet = require('helmet');
+const compression = require('compression');
+let RedisStore = null;
+let redisClient = null;
 
 // Конфигурация
 const config = require('./config/environment');
@@ -58,6 +62,15 @@ app.use(cors({
   credentials: true
 }));
 
+// Security: стандартные заголовки и защита
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+// Сжатие ответов
+app.use(compression());
+
 // Security middleware (должны быть до body parsing)
 app.use(setSecurityHeaders);
 app.use(logSuspiciousActivity);
@@ -74,13 +87,29 @@ app.use(sanitizeInput);
 app.use(preventSqlInjection);
 
 // Session middleware
+// Опционально используем Redis при наличии REDIS_URL
+if (process.env.REDIS_URL) {
+  try {
+    const connectRedis = require('connect-redis');
+    const IORedis = require('ioredis');
+    RedisStore = connectRedis(session);
+    redisClient = new IORedis(process.env.REDIS_URL);
+    logger.info('SERVER', 'Redis session store включен');
+  } catch (e) {
+    logger.warn('SERVER', 'Не удалось инициализировать Redis store, используем memory store', { error: e.message });
+  }
+}
+
 app.use(session({
+  store: RedisStore && redisClient ? new RedisStore({ client: redisClient, prefix: 'geoclips:sess:' }) : undefined,
+  name: 'geoclips.sid',
   secret: config.session.secret,
   resave: false,
   saveUninitialized: false,
   cookie: { 
     secure: config.session.secure,
     httpOnly: true,
+    sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 часа
   }
 }));
@@ -109,7 +138,7 @@ if (config.nodeEnv !== 'production') {
 app.use('/auth', limiters.auth, authRoutes);
 // Монтируем видео-роуты под /api, избегая двойного применения лимитеров
 app.use('/api', limiters.api, apiRoutes);
-app.use('/api/video', videoRoutes);
+app.use('/api/video', limiters.upload, videoRoutes);
 app.use('/admin', limiters.read, adminRoutes);
 
 // Обработка корневого пути - перенаправляем на админку

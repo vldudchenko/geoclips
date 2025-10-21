@@ -4,6 +4,7 @@ import { VideoService } from '../services/videoService';
 import { UserService } from '../services/userService';
 import { ServerApi } from '../services/serverApi';
 import { createCircleImageUrl } from '../utils/yandexUtils';
+import { calculateDistance } from '../utils/geoUtils';
 import VideoPlayer from './VideoPlayer';
 import logger from '../utils/logger';
 
@@ -14,6 +15,8 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
   const placemarkRef = useRef(null);
   const savedMapStateRef = useRef(null);
   const videoMarkersRef = useRef([]);
+  const clustererRef = useRef(null);
+  const fetchTimerRef = useRef(null);
   
   const [videos, setVideos] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
@@ -82,6 +85,18 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
       controls: []
     });
 
+    // Инициализация кластерера
+    clustererRef.current = new ymaps.Clusterer({
+      preset: 'islands#invertedVioletClusterIcons',
+      groupByCoordinates: false,
+      clusterDisableClickZoom: false,
+      clusterHideIconOnBalloonOpen: false,
+      geoObjectHideIconOnBalloonOpen: false,
+      gridSize: 64,
+      minClusterSize: 3
+    });
+    mapInstanceRef.current.geoObjects.add(clustererRef.current);
+
     mapInstanceRef.current.events.add('click', (e) => {
       if (!isEditMode || !isAuthenticated) {
         logger.map('Клик по карте игнорируется (не в режиме редактирования или не авторизован)');
@@ -101,6 +116,14 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
         };
         savedMapStateRef.current = mapState;
         localStorage.setItem('yandexMapState', JSON.stringify(mapState));
+
+        // Дебаунс подгрузки видео по текущим границам
+        if (fetchTimerRef.current) {
+          clearTimeout(fetchTimerRef.current);
+        }
+        fetchTimerRef.current = setTimeout(() => {
+          loadVideosInView();
+        }, 400);
       }
     });
 
@@ -203,25 +226,31 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
     }
   }, []);
 
-  // Добавление видео маркеров на карту
+  // Добавление видео маркеров на карту (с кластеризацией)
   const addVideoMarkersToMap = React.useCallback(async (videosToAdd) => {
     if (!mapInstanceRef.current || !ymaps) {
       logger.map('mapInstance or ymaps not ready');
       return;
     }
 
-    logger.map('Adding video markers', { count: videosToAdd.length });
+    logger.map('Добавление видеомаркеров', { count: videosToAdd.length });
 
-    // Удаляем старые видео маркеры
-    videoMarkersRef.current.forEach(marker => {
-      const mapInstance = mapInstanceRef.current;
-      if (mapInstance && mapInstance.geoObjects) {
-        mapInstance.geoObjects.remove(marker);
-      }
-    });
-    videoMarkersRef.current = [];
+    // Очищаем предыдущие маркеры
+    if (clustererRef.current) {
+      clustererRef.current.removeAll();
+    } else {
+      // fallback на прямое добавление/удаление
+      videoMarkersRef.current.forEach(marker => {
+        const mapInstance = mapInstanceRef.current;
+        if (mapInstance && mapInstance.geoObjects) {
+          mapInstance.geoObjects.remove(marker);
+        }
+      });
+      videoMarkersRef.current = [];
+    }
 
     // Добавляем новые маркеры
+    const newPlacemarks = [];
     for (const video of videosToAdd) {
       if (!video.longitude || !video.latitude) {
         logger.warn('Видео без координат', { id: video.id });
@@ -290,19 +319,10 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
 
       // Создаем маркер
       const markerIcon = createMarkerIcon(markerIconUrl);
-      
-      // Создаем маркер
       const marker = new ymaps.Placemark(
         coordinates,
-        {
-          hintContent: `${video.description || 'Без описания'}`
-        },
-        {
-          ...markerIcon,
-          balloonCloseButton: false,
-          balloonAutoPan: false,
-          balloonDisableAutoPan: true
-        }
+        { hintContent: `${video.description || 'Без описания'}` },
+        { ...markerIcon, balloonCloseButton: false, balloonAutoPan: false, balloonDisableAutoPan: true }
       );
 
       // Обработчик клика
@@ -328,14 +348,20 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
         navigateToVideo();
       });
 
-      const mapInstance = mapInstanceRef.current;
-      if (!mapInstance || !mapInstance.geoObjects) continue;
-      mapInstance.geoObjects.add(marker);
-      videoMarkersRef.current.push(marker);
+      if (clustererRef.current) {
+        newPlacemarks.push(marker);
+      } else {
+        const mapInstance = mapInstanceRef.current;
+        if (!mapInstance || !mapInstance.geoObjects) continue;
+        mapInstance.geoObjects.add(marker);
+        videoMarkersRef.current.push(marker);
+      }
       logger.map('Метка добавлена', { id: video.id });
     }
 
-    logger.map('Добавлено видео меток', { count: videoMarkersRef.current.length });
+    if (clustererRef.current && newPlacemarks.length) {
+      clustererRef.current.add(newPlacemarks);
+    }
   }, [ymaps, currentUser, closeAllBalloons, navigate, userAvatarsCache, circularAvatarsCache]); // Исправлены зависимости
 
   // Предварительная загрузка аватаров из данных видео (для гостей)
@@ -409,49 +435,54 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
     }
   }, [userAvatarsCache, videos, addVideoMarkersToMap]);
 
-  // Загрузка видео только при инициализации карты (один раз)
+  // Загрузка видео по текущим границам (первичная и при перемещении)
+  const loadVideosInView = React.useCallback(async () => {
+    if (!mapInstanceRef.current) return;
+    try {
+      setIsLoadingVideos(true);
+      const center = mapInstanceRef.current.getCenter(); // [lon, lat]
+      const bounds = mapInstanceRef.current.getBounds(); // [[swLon, swLat],[neLon, neLat]]
+      if (!center || !bounds) return;
+
+      const centerLat = center[1];
+      const centerLon = center[0];
+      const ne = bounds[1];
+      const neLat = ne[1];
+      const neLon = ne[0];
+      // Радиус как расстояние от центра до северо-восточного угла
+      const radiusKm = Math.min(25, Math.max(0.5, calculateDistance(centerLat, centerLon, neLat, neLon)));
+
+      const videosInRadius = await VideoService.getVideosByLocation(centerLat, centerLon, radiusKm);
+
+      // Пре-заполняем кэш аватаров из join данных
+      const avatarsFromJoin = {};
+      videosInRadius.forEach(video => {
+        if (video.users?.avatar_url) {
+          avatarsFromJoin[video.user_id] = video.users.avatar_url;
+        }
+      });
+      if (Object.keys(avatarsFromJoin).length > 0) {
+        const newCache = { ...userAvatarsCache, ...avatarsFromJoin };
+        setUserAvatarsCache(newCache);
+        saveAvatarsCacheToStorage(newCache);
+      }
+
+      setVideos(videosInRadius);
+      await addVideoMarkersToMap(videosInRadius);
+      setVideosLoaded(true);
+      logger.video('Загружено видео по границам', { count: videosInRadius.length, radiusKm });
+    } catch (error) {
+      logger.error('Ошибка загрузки видео по границам', { error: error.message });
+    } finally {
+      setIsLoadingVideos(false);
+    }
+  }, [addVideoMarkersToMap, userAvatarsCache]);
+
   useEffect(() => {
     if (!ymaps || !mapInstanceRef.current || videosLoaded) return;
-
-    const loadVideos = async () => {
-      logger.loading('Начало загрузки видео');
-      setIsLoadingVideos(true);
-      try {
-        const videos = await VideoService.getAllVideosWithCoordinates();
-        logger.video('Загружено видео', { count: videos.length });
-        logger.debug('Структура данных видео', { videos: videos.map(v => ({ id: v.id, description: v.description, user_id: v.user_id, users: v.users })) });
-        
-        // Сначала загружаем аватары из join данных
-        const avatarsFromJoin = {};
-        videos.forEach(video => {
-          if (video.users?.avatar_url) {
-            avatarsFromJoin[video.user_id] = video.users.avatar_url;
-          }
-        });
-        
-        // Обновляем кэш аватаров
-        if (Object.keys(avatarsFromJoin).length > 0) {
-          const newCache = {
-            ...userAvatarsCache,
-            ...avatarsFromJoin
-          };
-          setUserAvatarsCache(newCache);
-          saveAvatarsCacheToStorage(newCache);
-        }
-        
-        setVideos(videos);
-        addVideoMarkersToMap(videos);
-        setVideosLoaded(true); // Помечаем, что видео загружены
-      } catch (error) {
-        logger.error('Ошибка загрузки видео', { error: error.message });
-      } finally {
-        setIsLoadingVideos(false);
-      }
-    };
-
-    const timer = setTimeout(loadVideos, 1000);
+    const timer = setTimeout(() => loadVideosInView(), 800);
     return () => clearTimeout(timer);
-  }, [ymaps, videosLoaded, addVideoMarkersToMap]); // Добавили addVideoMarkersToMap в зависимости
+  }, [ymaps, videosLoaded, loadVideosInView]);
 
 
   return (

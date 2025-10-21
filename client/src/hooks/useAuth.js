@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import CacheService from '../services/cacheService';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.31.164:5000';
+import { API_BASE_URL } from '../utils/constants';
 
 const useAuth = () => {
   const [user, setUser] = useState(null);

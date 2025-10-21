@@ -21,69 +21,76 @@ router.get('/yandex', (req, res, next) => {
 });
 
 /**
- * Callback после авторизации через Яндекс
+ * Callback после авторизации через Яндекс (c кастомной обработкой ошибок)
  */
-router.get('/yandex/callback',
-  passport.authenticate('yandex', { failureRedirect: `${config.clientUrl}/login` }),
-  async (req, res) => {
+router.get('/yandex/callback', (req, res, next) => {
+  passport.authenticate('yandex', async (err, user, info) => {
     try {
-      logger.success('AUTH', 'Успешная авторизация', { 
-        user_id: req.user?.id,
-        sessionId: req.sessionID,
-        returnTo: req.session.returnTo
-      });
-      
-      // Получаем URL возврата из сессии
-      const returnTo = req.session.returnTo || '/';
-      delete req.session.returnTo; // Очищаем после использования
-      
-      logger.info('AUTH', 'Callback redirect logic', { 
-        returnTo, 
-        baseUrl: config.baseUrl,
-        clientUrl: config.clientUrl 
-      });
-      
-      // Если это админка, перенаправляем туда
-      if (returnTo === '/admin' || returnTo.includes('/admin')) {
-        logger.info('AUTH', 'Redirecting to admin panel');
-        // Принудительно сохраняем сессию перед редиректом
-        req.session.save((err) => {
-          if (err) {
-            logger.error('AUTH', 'Ошибка сохранения сессии', err);
-          }
-          res.redirect(`${config.baseUrl}/admin`);
+      if (err) {
+        // Частый кейс: повторный запрос с тем же code => "Code has expired"
+        logger.warn('AUTH', 'OAuth callback error', { message: err.message, url: req.originalUrl });
+        return res.redirect(`${config.baseUrl}/admin`);
+      }
+      if (!user) {
+        return res.redirect(`${config.baseUrl}/admin`);
+      }
+
+      req.logIn(user, async (loginErr) => {
+        if (loginErr) {
+          logger.error('AUTH', 'Ошибка сохранения сессии', loginErr);
+          return res.redirect(`${config.baseUrl}/admin`);
+        }
+
+        logger.success('AUTH', 'Успешная авторизация', { 
+          user_id: req.user?.id,
+          sessionId: req.sessionID,
+          returnTo: req.session.returnTo
         });
-        return;
-      }
-      
-      // Получаем данные пользователя из базы данных
-      const { data: dbUser, error } = await supabase
-        .from('users')
-        .select('id, display_name')
-        .eq('yandex_id', req.user.id)
-        .maybeSingle();
 
-      if (error) {
-        logger.error('AUTH', 'Ошибка получения данных пользователя из БД', error);
-        // Fallback на токен доступа
-        res.redirect(`${config.clientUrl}/profile/${req.user.accessToken}`);
-        return;
-      }
+        const returnTo = req.session.returnTo || '/';
+        delete req.session.returnTo;
 
-      if (dbUser?.display_name) {
-        // Перенаправляем на страницу профиля с display_name пользователя
-        res.redirect(`${config.clientUrl}/profile/${dbUser.display_name}`);
-      } else {
-        // Fallback на токен доступа если display_name не найден
-        res.redirect(`${config.clientUrl}/profile/${req.user.accessToken}`);
-      }
-    } catch (error) {
-      logger.error('AUTH', 'Ошибка в callback авторизации', error);
-      // Fallback на токен доступа
-      res.redirect(`${config.clientUrl}/profile/${req.user.accessToken}`);
+        logger.info('AUTH', 'Callback redirect logic', { 
+          returnTo, 
+          baseUrl: config.baseUrl,
+          clientUrl: config.clientUrl 
+        });
+
+        if (returnTo === '/admin' || returnTo.includes('/admin')) {
+          logger.info('AUTH', 'Redirecting to admin panel');
+          req.session.save((saveErr) => {
+            if (saveErr) {
+              logger.error('AUTH', 'Ошибка сохранения сессии', saveErr);
+            }
+            res.redirect(`${config.baseUrl}/admin`);
+          });
+          return;
+        }
+
+        // Получаем данные пользователя из базы данных
+        const { data: dbUser, error } = await supabase
+          .from('users')
+          .select('id, display_name')
+          .eq('yandex_id', req.user.id)
+          .maybeSingle();
+
+        if (error) {
+          logger.error('AUTH', 'Ошибка получения данных пользователя из БД', error);
+          // Fallback на безопасный маршрут
+          return res.redirect(`${config.clientUrl}/profile/current`);
+        }
+
+        if (dbUser?.display_name) {
+          return res.redirect(`${config.clientUrl}/profile/${dbUser.display_name}`);
+        }
+        return res.redirect(`${config.clientUrl}/profile/current`);
+      });
+    } catch (e) {
+      logger.error('AUTH', 'Ошибка в callback авторизации', e);
+      return res.redirect(`${config.baseUrl}/admin`);
     }
-  }
-);
+  })(req, res, next);
+});
 
 /**
  * Проверка статуса авторизации
@@ -143,6 +150,27 @@ router.post('/logout', (req, res) => {
     }
     logger.success('AUTH', 'Пользователь вышел из системы');
     res.json({ success: true });
+  });
+});
+
+/**
+ * Выход (GET) для удобного разлогина из ссылок/кнопок
+ */
+router.get('/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      logger.error('AUTH', 'Ошибка при выходе (GET)', err);
+      return res.status(500).json({ error: 'Ошибка при выходе' });
+    }
+    req.session.destroy((destroyErr) => {
+      if (destroyErr) {
+        logger.error('AUTH', 'Ошибка уничтожения сессии (GET)', destroyErr);
+        return res.status(500).json({ error: 'Ошибка при выходе' });
+      }
+      res.clearCookie('connect.sid');
+      // Возвращаем на админку, где будет показана кнопка входа
+      res.redirect('/admin');
+    });
   });
 });
 

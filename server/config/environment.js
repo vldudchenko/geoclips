@@ -3,31 +3,31 @@
  * Централизованное управление переменными окружения
  */
 
-require('dotenv').config();
+require('dotenv').config({ path: './.env' });
 
 const config = {
   // Сервер
   port: process.env.PORT || 5000,
-  baseUrl: process.env.BASE_URL || 'http://192.168.31.164:5000',
-  clientUrl: process.env.CLIENT_URL || 'http://192.168.31.164:3000',
+  baseUrl: process.env.BASE_URL,
+  clientUrl: process.env.CLIENT_URL,
   nodeEnv: process.env.NODE_ENV || 'development',
 
   // Supabase
   supabase: {
-    url: process.env.REACT_APP_SUPABASE_URL || 'https://dfzlheyjqazpwqtiqdsp.supabase.co',
-    anonKey: process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmemxoZXlqcWF6cHdxdGlxZHNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NDA5NTUsImV4cCI6MjA3NjAxNjk1NX0.OBc35yo7lXt4sv7zOPPyKegP9nqDUOVqRGaVPy8cjiE'
+    url: process.env.SUPABASE_URL,
+    anonKey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY
   },
 
   // Yandex OAuth
   yandex: {
-    clientId: process.env.YANDEX_CLIENT_ID || 'dbdc7963b53143ca9a2326863abdcfb7',
-    clientSecret: process.env.YANDEX_CLIENT_SECRET || 'fed84492cc2c418eb595b749d8a8fe91',
-    apiKey: process.env.YANDEX_API_KEY || 'd994023b-b074-4c2b-a251-eb5f1a7ce0d3'
+    clientId: process.env.YANDEX_CLIENT_ID || '',
+    clientSecret: process.env.YANDEX_CLIENT_SECRET || '',
+    apiKey: process.env.YANDEX_API_KEY || ''
   },
 
   // Session
   session: {
-    secret: process.env.SESSION_SECRET || 'geoclips-secret-key-change-in-production',
+    secret: process.env.SESSION_SECRET || '',
     secure: process.env.NODE_ENV === 'production'
   },
 
@@ -46,14 +46,18 @@ const config = {
   cors: {
     allowedOrigins: [
       'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'http://192.168.31.164:3000'
+      'http://127.0.0.1:3000'
     ]
   },
 
   // Admin
   admin: {
     ids: process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : []
+  },
+
+  // Feature flags
+  features: {
+    allowProfileLookupByAccessToken: process.env.ALLOW_PROFILE_BY_TOKEN === 'true'
   }
 };
 
