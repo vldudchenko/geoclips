@@ -7,7 +7,7 @@ require('dotenv').config({ path: './.env' });
 
 const config = {
   // Сервер
-  port: process.env.PORT || 5000,
+  port: process.env.PORT,
   baseUrl: process.env.BASE_URL,
   clientUrl: process.env.CLIENT_URL,
   nodeEnv: process.env.NODE_ENV || 'development',

@@ -3,9 +3,8 @@
  */
 
 const logger = require('../utils/logger');
-const axios = require('axios');
 const config = require('../config/environment');
-const { ensureUserInDatabase } = require('../services/userService');
+const { authenticateWithBearerToken } = require('../services/authService');
 
 /**
  * Проверка, что пользователь авторизован
@@ -19,22 +18,13 @@ const requireAuth = async (req, res, next) => {
     // Dev-путь: поддержка Bearer токена Яндекс для совместимости клиента
     const authHeader = req.get('authorization') || req.get('Authorization');
     const allowBearer = config.nodeEnv !== 'production' || config.features.allowProfileLookupByAccessToken;
+    
     if (allowBearer && authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring('Bearer '.length).trim();
       if (token) {
         try {
-          const response = await axios.get('https://login.yandex.ru/info', {
-            headers: { Authorization: `OAuth ${token}` }
-          });
-          const yandexUser = response.data;
-          const dbUser = await ensureUserInDatabase(yandexUser);
-          req.user = {
-            id: yandexUser.id,
-            displayName: yandexUser.display_name || yandexUser.real_name || yandexUser.login,
-            photos: [{ value: `https://avatars.yandex.net/get-yapic/${yandexUser.default_avatar_id}/islands-200` }],
-            accessToken: token,
-            dbUser
-          };
+          const user = await authenticateWithBearerToken(token);
+          req.user = user;
           return next();
         } catch (e) {
           logger.warn('AUTH', 'Неверный Bearer токен', { message: e.message });
@@ -110,18 +100,15 @@ const requireOwnership = (resourceUserIdGetter) => {
  */
 const requireAdmin = (req, res, next) => {
   if (!req.isAuthenticated || !req.isAuthenticated()) {
-    logger.warn('AUTH', 'Попытка доступа к админке без авторизации');
-    return res.status(401).json({ 
-      error: 'Требуется авторизация',
-      code: 'UNAUTHORIZED'
-    });
+    logger.warn('AUTH', 'Попытка доступа к админке без авторизации, пернаправление на страницу входа');
+    // Перенаправляем на страницу входа вместо JSON ошибки
+    return res.redirect('/auth/login');
   }
   
   // Здесь можно добавить проверку роли из БД
   // const isAdmin = req.user?.dbUser?.role === 'admin';
   
   // Проверяем права администратора
-  const config = require('../config/environment');
   const adminIds = config.admin.ids;
   const userId = req.user?.dbUser?.id;
   
@@ -129,7 +116,7 @@ const requireAdmin = (req, res, next) => {
   if (adminIds.length > 0 && !adminIds.includes(userId)) {
     logger.warn('AUTH', 'Попытка доступа к админке без прав', { userId, adminIds });
     return res.status(403).json({ 
-      error: 'Доступ запрещен', 
+      error: 'Доступ запрещен - недостаточно прав', 
       code: 'FORBIDDEN' 
     });
   }

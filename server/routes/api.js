@@ -655,7 +655,7 @@ router.get('/videos/near', async (req, res) => {
 
     const { data, error } = await supabase
       .from('videos')
-      .select('id, user_id, description, video_url, latitude, longitude, likes_count, views_count, created_at, updated_at')
+      .select('id, user_id, description, video_url, latitude, longitude, likes_count, views_count, created_at')
       .not('latitude', 'is', null)
       .not('longitude', 'is', null)
       .gte('latitude', minLat)

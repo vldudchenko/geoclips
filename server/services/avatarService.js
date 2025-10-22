@@ -49,7 +49,6 @@ const createUserAvatar = async (yandexUserData, existingUserId = null) => {
         display_name: yandexUserData.display_name || yandexUserData.real_name || yandexUserData.login,
         avatar_url: null,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
       };
       
       const { data: newUser, error: insertError } = await supabase
@@ -74,7 +73,6 @@ const createUserAvatar = async (yandexUserData, existingUserId = null) => {
       .from('users')
       .update({ 
         avatar_url: avatarUrl,
-        updated_at: new Date().toISOString()
       })
       .eq('id', userId)
       .select('id, yandex_id, first_name, last_name, display_name, avatar_url')

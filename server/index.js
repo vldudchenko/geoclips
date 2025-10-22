@@ -32,7 +32,7 @@ const {
 const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/api');
 const videoRoutes = require('./routes/video');
-const adminRoutes = require('./routes/admin');
+const adminRoutes = require('./routes/index'); // Модульная структура админки
 
 // Утилиты
 const { ensureUploadDirs } = require('./utils/fileUtils');
@@ -191,8 +191,6 @@ ensureUploadDirs().catch(error => {
 app.listen(config.port, '0.0.0.0', () => {
   logger.success('SERVER', `Сервер запущен на порту ${config.port}`);
   logger.info('SERVER', `Локальный доступ: http://localhost:${config.port}`);
-  logger.info('SERVER', `Сетевой доступ: ${config.baseUrl}`);
-  logger.info('SERVER', `Клиент: ${config.clientUrl}`);
   logger.info('SERVER', `Callback URL: ${config.baseUrl}/auth/yandex/callback`);
   logger.info('SERVER', `Режим: ${config.nodeEnv}`);
 });

@@ -4,10 +4,10 @@
 
 const passport = require('passport');
 const OAuth2Strategy = require('passport-oauth2').Strategy;
-const axios = require('axios');
 const config = require('./environment');
 const logger = require('../utils/logger');
-const { ensureUserInDatabase } = require('../services/userService');
+const { createSessionUser } = require('../services/authService');
+const { getYandexUserInfo } = require('../services/authService');
 
 /**
  * Настройка Yandex OAuth2 стратегии
@@ -24,36 +24,17 @@ passport.use('yandex', new OAuth2Strategy({
     logger.auth('Начало авторизации через Яндекс');
 
     // Получаем информацию о пользователе через API Яндекс
-    const userResponse = await axios.get('https://login.yandex.ru/info', {
-      headers: {
-        'Authorization': `OAuth ${accessToken}`
-      }
-    });
-
-    const userInfo = userResponse.data;
+    const userInfo = await getYandexUserInfo(accessToken);
     
-    logger.info('AUTH', 'Данные пользователя от Яндекс получены', {
-      id: userInfo.id,
-      display_name: userInfo.display_name,
-      has_avatar: !userInfo.is_avatar_empty
-    });
+    logger.info('AUTH', 'Данные пользователя от Яндекс получены');
 
-    // Сохраняем/обновляем пользователя в базе
-    const dbUser = await ensureUserInDatabase(userInfo);
+    // Создаем объект пользователя для сессии
+    const user = await createSessionUser(userInfo, accessToken);
 
-    // Создаем объект пользователя
-    const user = {
-      id: userInfo.id,
-      displayName: userInfo.display_name || userInfo.real_name || userInfo.login,
-      photos: [{ value: `https://avatars.yandex.net/get-yapic/${userInfo.default_avatar_id}/islands-200` }],
-      accessToken: accessToken,
-      dbUser: dbUser
-    };
-
-    logger.success('AUTH', 'Авторизация успешна', { user_id: user.id });
+    logger.success('AUTH', 'OAuth аутентификация успешна (ожидание создания сессии)');
     return done(null, user);
   } catch (error) {
-    logger.error('AUTH', 'Ошибка авторизации', error);
+    logger.error('AUTH', 'Ошибка OAuth аутентификации', error);
     return done(error, null);
   }
 }));

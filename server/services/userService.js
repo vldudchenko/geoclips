@@ -11,7 +11,7 @@ const { createUserAvatar } = require('./avatarService');
  */
 const ensureUserInDatabase = async (yandexUserData, retryCount = 0) => {
   try {
-    logger.info('USER', 'Проверяем пользователя в базе данных', { yandex_id: yandexUserData.id, retry: retryCount });
+    logger.info('USER', 'Проверяем пользователя в базе данных');
 
     // Проверяем, существует ли пользователь
     const { data: existingUser, error: selectError } = await supabase
@@ -26,7 +26,7 @@ const ensureUserInDatabase = async (yandexUserData, retryCount = 0) => {
     }
 
     if (existingUser) {
-      logger.success('USER', 'Пользователь уже существует', { user_id: existingUser.id });
+      logger.success('USER', 'Пользователь существует в базе данных');
       
       // Проверяем, нужно ли обновить аватар
       let avatarUrl = existingUser.avatar_url;
@@ -49,7 +49,6 @@ const ensureUserInDatabase = async (yandexUserData, retryCount = 0) => {
         last_name: yandexUserData.last_name || existingUser.last_name,
         display_name: yandexUserData.display_name || yandexUserData.real_name || existingUser.display_name,
         avatar_url: avatarUrl,
-        updated_at: new Date().toISOString()
       };
 
       const { data: updatedUser, error: updateError } = await supabase
@@ -64,7 +63,7 @@ const ensureUserInDatabase = async (yandexUserData, retryCount = 0) => {
         return existingUser;
       }
 
-      logger.success('USER', 'Данные пользователя обновлены', { user_id: updatedUser.id });
+      logger.success('USER', 'Данные пользователя обновлены');
       return updatedUser;
     } else {
       logger.info('USER', 'Создаем/обновляем пользователя через UPSERT');
@@ -142,7 +141,6 @@ const updateUserBasicData = async (yandexUserData) => {
       last_name: yandexUserData.last_name || existingUser.last_name,
       display_name: yandexUserData.display_name || yandexUserData.real_name || existingUser.display_name,
       avatar_url: existingUser.avatar_url,
-      updated_at: new Date().toISOString()
     };
 
     const { data: updatedUser, error: updateError } = await supabase

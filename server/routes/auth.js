@@ -4,10 +4,26 @@
 
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const { readFile } = require('fs').promises;
 const passport = require('passport');
 const supabase = require('../config/supabase');
 const config = require('../config/environment');
 const logger = require('../utils/logger');
+
+/**
+ * Страница входа
+ */
+router.get('/login', async (req, res) => {
+  try {
+    const loginPath = path.join(__dirname, '../views/login.html');
+    const html = await readFile(loginPath, 'utf-8');
+    res.type('text/html').send(html);
+  } catch (error) {
+    logger.error('AUTH', 'Ошибка загрузки страницы входа', error);
+    res.status(500).json({ error: 'Ошибка загрузки страницы входа' });
+  }
+});
 
 /**
  * Начало OAuth авторизации через Яндекс
@@ -53,23 +69,13 @@ router.get('/yandex/callback', (req, res, next) => {
           return res.redirect(`${(config.clientUrl || '').trim().replace(/\/+$/, '')}/profile/current`);
         }
 
-        logger.success('AUTH', 'Успешная авторизация', { 
-          user_id: req.user?.id,
-          sessionId: req.sessionID,
-          returnTo: req.session.returnTo
-        });
+        logger.success('AUTH', 'Сессия пользователя создана');
 
         const returnTo = req.session.returnTo || intendedReturnTo || '/';
         delete req.session.returnTo;
 
-        logger.info('AUTH', 'Callback redirect logic', { 
-          returnTo, 
-          baseUrl: config.baseUrl,
-          clientUrl: config.clientUrl 
-        });
-
         if (returnTo === '/admin' || returnTo.includes('/admin')) {
-          logger.info('AUTH', 'Redirecting to admin panel');
+          logger.info('AUTH', 'Перенаправление в панель администратора');
           req.session.save((saveErr) => {
             if (saveErr) {
               logger.error('AUTH', 'Ошибка сохранения сессии', saveErr);

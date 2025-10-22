@@ -88,10 +88,7 @@ class RateLimiter {
       
       // Логируем каждый 10-й запрос для мониторинга
       if (requestData.count % 10 === 0) {
-        logger.debug('RATE_LIMITER', `📊 Статистика: ${requestData.count} запросов`, {
-          url: req.url,
-          method: req.method
-        });
+        logger.debug('RATE_LIMITER', `📊 Статистика: ${requestData.count} запросов`);
       }
       
       // Добавляем заголовки

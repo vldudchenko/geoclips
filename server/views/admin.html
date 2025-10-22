@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -14,324 +13,218 @@
             <button class="logout-btn" onclick="logout()">🚪 Выйти</button>
         </div>
         
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-number" id="users-count">-</div>
-                <div class="stat-label">Пользователей</div>
+        <!-- Навигационная панель -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="switchTab('dashboard')">📊 Дашборд</button>
+            <button class="nav-tab" onclick="switchTab('analytics')">📈 Аналитика</button>
+            <button class="nav-tab" onclick="switchTab('users')">👥 Пользователи</button>
+            <button class="nav-tab" onclick="switchTab('videos')">🎬 Видео</button>
+            <button class="nav-tab" onclick="switchTab('tags')">🏷️ Теги</button>
+            <button class="nav-tab" onclick="switchTab('system')">⚙️ Система</button>
+            <button class="nav-tab" onclick="switchTab('logs')">📝 Логи</button>
+        </div>
+
+        <!-- Вкладка: Дашборд -->
+        <div id="tab-dashboard" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="users-count">-</div>
+                    <div class="stat-label">Пользователей</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="videos-count">-</div>
+                    <div class="stat-label">Видео</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="total-views">-</div>
+                    <div class="stat-label">Просмотров</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="total-likes">-</div>
+                    <div class="stat-label">Лайков</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="tags-count">-</div>
+                    <div class="stat-label">Тегов</div>
+                </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-number" id="videos-count">-</div>
-                <div class="stat-label">Видео</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="total-views">-</div>
-                <div class="stat-label">Просмотров</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="total-likes">-</div>
-                <div class="stat-label">Лайков</div>
+
+            
+
+            <div class="section">
+                <h2>📊 Краткая статистика за последние 7 дней</h2>
+                <div id="dashboard-chart">
+                    <div class="loading">Загрузка графиков...</div>
+                </div>
             </div>
         </div>
-        
-        <div class="section">
-            <h2>👥 Пользователи</h2>
-            <button class="btn" onclick="loadUsers()">Обновить список</button>
-            <div id="users-container">
-                <div class="loading">Загрузка пользователей...</div>
+
+        <!-- Вкладка: Аналитика -->
+        <div id="tab-analytics" class="tab-content">
+            <div class="section">
+                <h2>📈 Расширенная аналитика</h2>
+                <button class="btn" onclick="loadAnalytics()">Обновить аналитику</button>
+                
+                <div class="analytics-period">
+                    <div class="period-card">
+                        <h3>Последние 7 дней</h3>
+                        <p>Новых пользователей: <span id="analytics-users-7d">-</span></p>
+                        <p>Новых видео: <span id="analytics-videos-7d">-</span></p>
+                    </div>
+                    <div class="period-card">
+                        <h3>Последние 30 дней</h3>
+                        <p>Новых пользователей: <span id="analytics-users-30d">-</span></p>
+                        <p>Новых видео: <span id="analytics-videos-30d">-</span></p>
+                    </div>
+                </div>
+
+                <div id="daily-chart">
+                    <canvas id="dailyStatsChart"></canvas>
+                </div>
+
+                <div class="analytics-grid">
+                    <div class="analytics-section">
+                        <h3>🏆 Топ пользователей по видео</h3>
+                        <div id="top-users-list"></div>
+                    </div>
+                    <div class="analytics-section">
+                        <h3>🌟 Топ видео по просмотрам</h3>
+                        <div id="top-videos-list"></div>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <div class="section">
-            <h2>🎬 Видео</h2>
-            <button class="btn" onclick="loadVideos()">Обновить список</button>
-            <div id="videos-container">
-                <div class="loading">Загрузка видео...</div>
+
+        <!-- Вкладка: Пользователи -->
+        <div id="tab-users" class="tab-content">
+            <div class="section">
+                <h2>👥 Управление пользователями</h2>
+                
+                <div class="search-filter-panel">
+                    <input type="text" id="users-search" placeholder="Поиск пользователей..." class="search-input">
+                    <select id="users-sort" class="filter-select">
+                        <option value="created_at">По дате регистрации</option>
+                        <option value="display_name">По имени</option>
+                        <option value="yandex_id">По Yandex ID</option>
+                    </select>
+                    <select id="users-order" class="filter-select">
+                        <option value="desc">По убыванию</option>
+                        <option value="asc">По возрастанию</option>
+                    </select>
+                    <button class="btn" onclick="searchUsers()">🔍 Поиск</button>
+                    <button class="btn btn-secondary" onclick="loadUsers()">🔄 Сбросить</button>
+                </div>
+
+                <div class="export-panel">
+                    <button class="btn btn-secondary" onclick="exportData('users', 'csv')">📥 Экспорт CSV</button>
+                    <button class="btn btn-secondary" onclick="exportData('users', 'json')">📥 Экспорт JSON</button>
+                </div>
+
+                <div id="users-container">
+                    <div class="loading">Загрузка пользователей...</div>
+                </div>
+
+                <div class="pagination" id="users-pagination"></div>
             </div>
         </div>
-        
-        <div class="section">
-            <h2>🏷️ Теги</h2>
-            <button class="btn" onclick="loadTags()">Обновить список</button>
-            <div id="tags-container">
-                <div class="loading">Загрузка тегов...</div>
+
+        <!-- Вкладка: Видео -->
+        <div id="tab-videos" class="tab-content">
+            <div class="section">
+                <h2>🎬 Управление видео</h2>
+                
+                <div class="search-filter-panel">
+                    <input type="text" id="videos-search" placeholder="Поиск видео..." class="search-input">
+                    <input type="number" id="videos-min-views" placeholder="Мин. просмотры" class="filter-input">
+                    <input type="number" id="videos-min-likes" placeholder="Мин. лайки" class="filter-input">
+                    <select id="videos-sort" class="filter-select">
+                        <option value="created_at">По дате создания</option>
+                        <option value="views_count">По просмотрам</option>
+                        <option value="likes_count">По лайкам</option>
+                    </select>
+                    <select id="videos-order" class="filter-select">
+                        <option value="desc">По убыванию</option>
+                        <option value="asc">По возрастанию</option>
+                    </select>
+                    <button class="btn" onclick="searchVideos()">🔍 Поиск</button>
+                    <button class="btn btn-secondary" onclick="loadVideos()">🔄 Сбросить</button>
+                </div>
+
+                <div class="export-panel">
+                    <button class="btn btn-secondary" onclick="exportData('videos', 'csv')">📥 Экспорт CSV</button>
+                    <button class="btn btn-secondary" onclick="exportData('videos', 'json')">📥 Экспорт JSON</button>
+                    <button class="btn btn-danger" onclick="bulkDeleteVideos()" id="bulk-delete-videos-btn" disabled>
+                        🗑️ Удалить выбранные
+                    </button>
+                </div>
+
+                <div id="videos-container">
+                    <div class="loading">Загрузка видео...</div>
+                </div>
+
+                <div class="pagination" id="videos-pagination"></div>
+            </div>
+        </div>
+
+        <!-- Вкладка: Теги -->
+        <div id="tab-tags" class="tab-content">
+            <div class="section">
+                <h2>🏷️ Управление тегами</h2>
+                <button class="btn" onclick="loadTags()">Обновить список</button>
+                <div>
+                    <input class="search-input" type="text" id="new-tag-name" placeholder="Введите название тега..." maxlength="50">
+                    <button class="btn btn-secondary" onclick="createTag()">Создать тег</button>
+                </div>
+                <div class="export-panel">
+                    <button class="btn btn-secondary" onclick="exportData('tags', 'csv')">📥 Экспорт CSV</button>
+                    <button class="btn btn-secondary" onclick="exportData('tags', 'json')">📥 Экспорт JSON</button>                 
+                </div>
+                <div id="tags-container">
+                    <div class="loading">Загрузка тегов...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Вкладка: Система -->
+        <div id="tab-system" class="tab-content">
+            <div class="section">
+                <h2>⚙️ Системная информация</h2>
+                <button class="btn" onclick="loadSystemInfo()">🔄 Обновить</button>
+                
+                <div id="system-info-container">
+                    <div class="loading">Загрузка системной информации...</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>🧹 Обслуживание</h2>
+                <div class="maintenance-actions">
+                    <button class="btn btn-warning" onclick="cleanupData('unused_tags')">
+                        🏷️ Удалить неиспользуемые теги
+                    </button>
+                    <button class="btn btn-warning" onclick="cleanupData('old_videos')">
+                        🎬 Удалить старые видео без просмотров
+                    </button>
+                    <button class="btn btn-warning" onclick="fixTagCounters()">
+                        🔧 Исправить счетчики тегов
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Вкладка: Логи -->
+        <div id="tab-logs" class="tab-content">
+            <div class="section">
+                <h2>📝 Логи активности</h2>
+                <button class="btn" onclick="loadActivityLogs()">🔄 Обновить</button>
+                
+                <div id="activity-logs-container">
+                    <div class="loading">Загрузка логов...</div>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // Загрузка статистики
-        async function loadStats() {
-            try {
-                const response = await fetch('/admin/stats');
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
-                const data = await response.json();
-                document.getElementById('users-count').textContent = data.usersCount || 0;
-                document.getElementById('videos-count').textContent = data.videosCount || 0;
-                document.getElementById('total-views').textContent = data.totalViews || 0;
-                document.getElementById('total-likes').textContent = data.totalLikes || 0;
-            } catch (error) {
-                console.error('Ошибка загрузки статистики:', error);
-                document.getElementById('users-count').textContent = 'Ошибка';
-                document.getElementById('videos-count').textContent = 'Ошибка';
-                document.getElementById('total-views').textContent = 'Ошибка';
-                document.getElementById('total-likes').textContent = 'Ошибка';
-            }
-        }
-
-        // Загрузка пользователей
-        async function loadUsers() {
-            const container = document.getElementById('users-container');
-            container.innerHTML = '<div class="loading">Загрузка пользователей...</div>';
-            
-            try {
-                const response = await fetch('/admin/users');
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
-                const users = await response.json();
-                
-                if (users.length === 0) {
-                    container.innerHTML = '<div class="no-data">Пользователи не найдены</div>';
-                    return;
-                }
-                
-                const table = `
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Имя</th>
-                                <th>Email</th>
-                                <th>Дата регистрации</th>
-                                <th>Видео</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${users.map(user => `
-                                <tr>
-                                    <td>${user.id.substring(0, 8)}...</td>
-                                    <td>
-                                        <div class="user-info">
-                                            ${user.avatar_url ? `<img src="${user.avatar_url}" class="avatar" alt="Avatar">` : ''}
-                                            <span>${user.display_name || user.first_name || 'Без имени'}</span>
-                                        </div>
-                                    </td>
-                                    <td>${user.yandex_id || 'N/A'}</td>
-                                    <td>${new Date(user.created_at).toLocaleDateString('ru-RU')}</td>
-                                    <td>${user.videos_count || 0}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-                
-                container.innerHTML = table;
-            } catch (error) {
-                console.error('Ошибка загрузки пользователей:', error);
-                container.innerHTML = `<div class="error">Ошибка загрузки пользователей: ${error.message}</div>`;
-            }
-        }
-
-        // Загрузка видео
-        async function loadVideos() {
-            const container = document.getElementById('videos-container');
-            container.innerHTML = '<div class="loading">Загрузка видео...</div>';
-            
-            try {
-                const response = await fetch('/admin/videos');
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
-                const videos = await response.json();
-                
-                if (videos.length === 0) {
-                    container.innerHTML = '<div class="no-data">Видео не найдены</div>';
-                    return;
-                }
-                
-                const table = `
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Превью</th>
-                                <th>Описание</th>
-                                <th>Автор</th>
-                                <th>Просмотры</th>
-                                <th>Лайки</th>
-                                <th>Координаты</th>
-                                <th>Дата</th>
-                                <th>Действия</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${videos.map(video => `
-                                <tr>
-                                    <td>
-                                        Нет превью
-                                    </td>
-                                    <td>${video.description || 'Без описания'}</td>
-                                    <td>${video.users?.display_name || 'Неизвестно'}</td>
-                                    <td>${video.views_count || 0}</td>
-                                    <td>${video.likes_count || 0}</td>
-                                    <td>
-                                        ${video.latitude && video.longitude ? 
-                                            `${video.latitude.toFixed(4)}, ${video.longitude.toFixed(4)}` : 
-                                            'Нет координат'
-                                        }
-                                    </td>
-                                    <td>${new Date(video.created_at).toLocaleDateString('ru-RU')}</td>
-                                    <td>
-                                        <button class="btn btn-danger" onclick="deleteVideo('${video.id}', '${(video.description || 'Без описания').replace(/'/g, "\\'")}')">
-                                            🗑️ Удалить
-                                        </button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-                
-                container.innerHTML = table;
-            } catch (error) {
-                console.error('Ошибка загрузки видео:', error);
-                container.innerHTML = `<div class="error">Ошибка загрузки видео: ${error.message}</div>`;
-            }
-        }
-
-        // Загрузка тегов
-        async function loadTags() {
-            const container = document.getElementById('tags-container');
-            container.innerHTML = '<div class="loading">Загрузка тегов...</div>';
-            
-            try {
-                const response = await fetch('/admin/tags');
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
-                const tags = await response.json();
-                
-                if (tags.length === 0) {
-                    container.innerHTML = '<div class="no-data">Теги не найдены</div>';
-                    return;
-                }
-                
-                const table = `
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Название</th>
-                                <th>Использований</th>
-                                <th>Дата создания</th>
-                                <th>Действия</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${tags.map(tag => `
-                                <tr>
-                                    <td><span class="tag">${tag.name}</span></td>
-                                    <td>${tag.usage_count || 0}</td>
-                                    <td>${new Date(tag.created_at).toLocaleDateString('ru-RU')}</td>
-                                    <td>
-                                        <button class="btn btn-danger" onclick="deleteTag('${tag.id}', '${tag.name.replace(/'/g, "\\'")}', ${tag.usage_count || 0})">
-                                            🗑️ Удалить
-                                        </button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-                
-                container.innerHTML = table;
-            } catch (error) {
-                console.error('Ошибка загрузки тегов:', error);
-                container.innerHTML = `<div class="error">Ошибка загрузки тегов: ${error.message}</div>`;
-            }
-        }
-
-        // Удаление видео
-        async function deleteVideo(videoId, description) {
-            if (!confirm(`Вы уверены, что хотите удалить видео "${description}"?\n\nЭто действие нельзя отменить!`)) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/admin/videos/${videoId}`, {
-                    method: 'DELETE'
-                });
-                
-                if (response.ok) {
-                    alert('Видео успешно удалено!');
-                    loadVideos(); // Перезагружаем список
-                    loadStats(); // Обновляем статистику
-                } else {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-            } catch (error) {
-                console.error('Ошибка удаления видео:', error);
-                alert(`Ошибка удаления видео: ${error.message}`);
-            }
-        }
-
-        // Удаление тега
-        async function deleteTag(tagId, tagName, usageCount) {
-            let message = `Вы уверены, что хотите удалить тег "${tagName}"?`;
-            
-            if (usageCount > 0) {
-                message += `\n\nЭтот тег используется в ${usageCount} видео. Все связи будут удалены!`;
-            }
-            
-            message += '\n\nЭто действие нельзя отменить!';
-            
-            if (!confirm(message)) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/admin/tags/${tagId}`, {
-                    method: 'DELETE'
-                });
-                
-                if (response.ok) {
-                    alert('Тег успешно удален!');
-                    loadTags(); // Перезагружаем список
-                    loadStats(); // Обновляем статистику
-                } else {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-            } catch (error) {
-                console.error('Ошибка удаления тега:', error);
-                alert(`Ошибка удаления тега: ${error.message}`);
-            }
-        }
-
-        // Выход
-        async function logout() {
-            if (!confirm('Вы уверены, что хотите выйти из админки?')) {
-                return;
-            }
-            
-            try {
-                const response = await fetch('/admin/logout', {
-                    method: 'POST'
-                });
-                
-                if (response.ok) {
-                    window.location.href = '/admin';
-                } else {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-            } catch (error) {
-                console.error('Ошибка при выходе:', error);
-                alert(`Ошибка при выходе: ${error.message}`);
-            }
-        }
-
-        // Загружаем данные при загрузке страницы
-        document.addEventListener('DOMContentLoaded', function() {
-            loadStats();
-            loadUsers();
-            loadVideos();
-            loadTags();
-        });
-    </script>
+    <script src="/admin/admin.js"></script>
 </body>
 </html>

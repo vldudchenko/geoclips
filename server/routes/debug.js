@@ -32,7 +32,7 @@ router.get('/check-users', async (req, res) => {
     
     const { data: users, error } = await supabase
       .from('users')
-      .select('id, yandex_id, display_name, avatar_url, created_at, updated_at')
+      .select('id, yandex_id, display_name, avatar_url, created_at')
       .order('created_at', { ascending: false })
       .limit(10);
     
