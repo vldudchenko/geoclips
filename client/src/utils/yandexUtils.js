@@ -93,30 +93,4 @@ export const createCircleImageUrl = (imageUrl) => {
   });
 };
 
-// Генерация превью из видео
-export const generateVideoThumbnail = (videoUrl, videoId) => {
-  return new Promise((resolve) => {
-    const video = document.createElement('video');
-    video.crossOrigin = 'anonymous';
-    video.currentTime = 2; // Берем кадр на 2 секунде
-    
-    video.addEventListener('loadeddata', () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
-      resolve(thumbnailUrl);
-    });
-    
-    video.addEventListener('error', () => {
-      resolve(null); // Возвращаем null если не удалось загрузить
-    });
-    
-    video.src = videoUrl;
-  });
-};
+

@@ -18,7 +18,6 @@ export class VideoService {
       likes_count,
       views_count,
       created_at,
-      updated_at,
       users (
         id,
         yandex_id,
@@ -138,7 +137,6 @@ export class VideoService {
         'likes_count',
         'views_count',
         'created_at',
-        'updated_at'
       ];
       const videoDataForDb = {};
       for (const key of allowedKeys) {
@@ -467,7 +465,7 @@ export class VideoService {
       
       const { data, error } = await supabase
         .from('users')
-        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at, updated_at')
+        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
         .eq('id', userId)
         .maybeSingle();
 

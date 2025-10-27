@@ -4,7 +4,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { requireAdmin } = require('../middleware/auth');
+const { requireAdmin } = require('../middleware/unified');
 const supabase = require('../config/supabase');
 const logger = require('../utils/logger');
 const dbUtils = require('../utils/dbUtils');

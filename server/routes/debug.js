@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const logger = require('../utils/logger');
-const { rateLimiter } = require('../middleware/rateLimiter');
+const { rateLimiter } = require('../middleware/unified');
 
 /**
  * Middleware для проверки режима разработки

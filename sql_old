@@ -1,0 +1,450 @@
+CREATE TABLE IF NOT EXISTS video_tags (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(video_id, tag_id)
+);
+
+ALTER TABLE video_tags ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'avatar_url'
+        AND table_schema = 'public'
+    ) THEN
+        ALTER TABLE users ADD COLUMN avatar_url TEXT;
+        RAISE NOTICE '✅ Добавлено поле avatar_url в таблицу users';
+    ELSE
+        RAISE NOTICE '✅ Поле avatar_url уже существует';
+    END IF;
+END $$;
+
+-- Проверяем и добавляем поле display_name если его нет
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'display_name'
+        AND table_schema = 'public'
+    ) THEN
+        ALTER TABLE users ADD COLUMN display_name TEXT;
+        RAISE NOTICE '✅ Добавлено поле display_name в таблицу users';
+    ELSE
+        RAISE NOTICE '✅ Поле display_name уже существует';
+    END IF;
+END $$;
+
+
+DROP POLICY IF EXISTS "Allow user creation for Yandex OAuth" ON users;
+DROP POLICY IF EXISTS "Users are viewable by everyone" ON users;
+DROP POLICY IF EXISTS "Users can update own profile" ON users;
+DROP POLICY IF EXISTS "Users can insert" ON users;
+DROP POLICY IF EXISTS "Users can select" ON users;
+DROP POLICY IF EXISTS "Users can update" ON users;
+DROP POLICY IF EXISTS "Public read access for users" ON users;
+DROP POLICY IF EXISTS "Public insert access for users" ON users;
+DROP POLICY IF EXISTS "Public update access for users" ON users;
+
+-- Создаем новые политики
+CREATE POLICY "Public read access for users"
+ON users FOR SELECT
+USING (true);
+
+CREATE POLICY "Public insert access for users"
+ON users FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Public update access for users"
+ON users FOR UPDATE
+USING (true);
+
+
+
+DROP POLICY IF EXISTS "Videos are viewable by everyone" ON videos;
+DROP POLICY IF EXISTS "Allow video creation" ON videos;
+DROP POLICY IF EXISTS "Users can update own videos" ON videos;
+DROP POLICY IF EXISTS "Users can delete own videos" ON videos;
+DROP POLICY IF EXISTS "Public read access for videos" ON videos;
+DROP POLICY IF EXISTS "Public insert access for videos" ON videos;
+DROP POLICY IF EXISTS "Public update access for videos" ON videos;
+DROP POLICY IF EXISTS "Public delete access for videos" ON videos;
+
+CREATE POLICY "Public read access for videos"
+ON videos FOR SELECT
+USING (true);
+
+CREATE POLICY "Public insert access for videos"
+ON videos FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Public update access for videos"
+ON videos FOR UPDATE
+USING (true);
+
+CREATE POLICY "Public delete access for videos"
+ON videos FOR DELETE
+USING (true);
+
+
+DROP POLICY IF EXISTS "Likes are viewable by everyone" ON likes;
+DROP POLICY IF EXISTS "Allow like creation" ON likes;
+DROP POLICY IF EXISTS "Allow like removal" ON likes;
+DROP POLICY IF EXISTS "Public read access for likes" ON likes;
+DROP POLICY IF EXISTS "Public insert access for likes" ON likes;
+DROP POLICY IF EXISTS "Public delete access for likes" ON likes;
+
+CREATE POLICY "Public read access for likes"
+ON likes FOR SELECT
+USING (true);
+
+CREATE POLICY "Public insert access for likes"
+ON likes FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Public delete access for likes"
+ON likes FOR DELETE
+USING (true);
+
+
+DROP POLICY IF EXISTS "Tags are viewable by everyone" ON tags;
+DROP POLICY IF EXISTS "Allow tag creation" ON tags;
+DROP POLICY IF EXISTS "Public read access for tags" ON tags;
+DROP POLICY IF EXISTS "Public insert access for tags" ON tags;
+
+CREATE POLICY "Public read access for tags"
+ON tags FOR SELECT
+USING (true);
+
+CREATE POLICY "Public insert access for tags"
+ON tags FOR INSERT
+WITH CHECK (true);
+
+
+DROP POLICY IF EXISTS "Video tags are viewable by everyone" ON video_tags;
+DROP POLICY IF EXISTS "Allow video tag creation" ON video_tags;
+DROP POLICY IF EXISTS "Allow video tag removal" ON video_tags;
+DROP POLICY IF EXISTS "Public read access for video_tags" ON video_tags;
+DROP POLICY IF EXISTS "Public insert access for video_tags" ON video_tags;
+
+CREATE POLICY "Public read access for video_tags"
+ON video_tags FOR SELECT
+USING (true);
+
+CREATE POLICY "Public insert access for video_tags"
+ON video_tags FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Public delete access for video_tags"
+ON video_tags FOR DELETE
+USING (true);
+
+
+DROP POLICY IF EXISTS "Public Access for videos" ON storage.objects;
+DROP POLICY IF EXISTS "Allow video upload" ON storage.objects;
+DROP POLICY IF EXISTS "Allow video deletion" ON storage.objects;
+DROP POLICY IF EXISTS "Public read access for videos storage" ON storage.objects;
+DROP POLICY IF EXISTS "Public insert access for videos storage" ON storage.objects;
+DROP POLICY IF EXISTS "Public delete access for videos storage" ON storage.objects;
+DROP POLICY IF EXISTS "Public update access for videos storage" ON storage.objects;
+
+-- Создаем политики для видео
+CREATE POLICY "Public read access for videos storage"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'geoclips-videos');
+
+CREATE POLICY "Public insert access for videos storage"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'geoclips-videos');
+
+CREATE POLICY "Public update access for videos storage"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'geoclips-videos');
+
+CREATE POLICY "Public delete access for videos storage"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'geoclips-videos');
+
+
+DROP POLICY IF EXISTS "Public read access for avatars storage" ON storage.objects;
+DROP POLICY IF EXISTS "Public insert access for avatars storage" ON storage.objects;
+DROP POLICY IF EXISTS "Public delete access for avatars storage" ON storage.objects;
+DROP POLICY IF EXISTS "Public update access for avatars storage" ON storage.objects;
+
+-- Создаем политики для аватаров
+CREATE POLICY "Public read access for avatars storage"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'geoclips-avatars');
+
+CREATE POLICY "Public insert access for avatars storage"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'geoclips-avatars');
+
+CREATE POLICY "Public update access for avatars storage"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'geoclips-avatars');
+
+CREATE POLICY "Public delete access for avatars storage"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'geoclips-avatars');
+
+
+DROP POLICY IF EXISTS "Public read access for thumbnails storage" ON storage.objects;
+DROP POLICY IF EXISTS "Public insert access for thumbnails storage" ON storage.objects;
+DROP POLICY IF EXISTS "Public delete access for thumbnails storage" ON storage.objects;
+DROP POLICY IF EXISTS "Public update access for thumbnails storage" ON storage.objects;
+
+-- Создаем политики для превью
+CREATE POLICY "Public read access for thumbnails storage"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'geoclips-thumbnails');
+
+CREATE POLICY "Public insert access for thumbnails storage"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'geoclips-thumbnails');
+
+CREATE POLICY "Public update access for thumbnails storage"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'geoclips-thumbnails');
+
+CREATE POLICY "Public delete access for thumbnails storage"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'geoclips-thumbnails');
+
+
+-- Проверяем статус RLS для buckets
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_tables 
+        WHERE schemaname = 'storage' 
+        AND tablename = 'buckets'
+    ) THEN
+        RAISE NOTICE '✅ Таблица storage.buckets существует';
+    END IF;
+END $$;
+
+-- Удаляем старые политики для buckets
+DROP POLICY IF EXISTS "Public bucket creation" ON storage.buckets;
+DROP POLICY IF EXISTS "Public bucket read" ON storage.buckets;
+DROP POLICY IF EXISTS "Allow bucket creation" ON storage.buckets;
+DROP POLICY IF EXISTS "Allow bucket read" ON storage.buckets;
+DROP POLICY IF EXISTS "Public access for buckets" ON storage.buckets;
+
+-- Создаем политики для buckets
+CREATE POLICY "Public bucket read"
+ON storage.buckets FOR SELECT
+USING (true);
+
+CREATE POLICY "Public bucket creation"
+ON storage.buckets FOR INSERT
+WITH CHECK (true);
+
+
+-- Проверяем структуру таблицы users
+SELECT 
+    '✅ Структура users:' as info,
+    column_name, 
+    data_type, 
+    is_nullable
+FROM information_schema.columns 
+WHERE table_name = 'users' 
+AND table_schema = 'public'
+ORDER BY ordinal_position;
+
+-- Проверяем политики для public таблиц
+SELECT 
+    '✅ Политики public таблиц:' as info,
+    tablename, 
+    policyname, 
+    cmd 
+FROM pg_policies 
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;
+
+-- Проверяем политики для storage
+SELECT 
+    '✅ Политики storage:' as info,
+    tablename, 
+    policyname, 
+    cmd 
+FROM pg_policies 
+WHERE schemaname = 'storage'
+ORDER BY tablename, policyname;
+
+-- Проверяем существующих пользователей
+SELECT 
+    '✅ Пользователи (последние 5):' as info,
+    id,
+    yandex_id,
+    display_name,
+    first_name,
+    last_name,
+    avatar_url,
+    created_at
+FROM users 
+ORDER BY created_at DESC 
+LIMIT 5;
+
+
+-- Индекс для поиска пользователя по yandex_id
+CREATE INDEX IF NOT EXISTS idx_users_yandex_id ON users(yandex_id);
+
+-- Индекс для поиска видео по пользователю
+CREATE INDEX IF NOT EXISTS idx_videos_user_id ON videos(user_id);
+
+-- Индекс для лайков
+CREATE INDEX IF NOT EXISTS idx_likes_video_id ON likes(video_id);
+CREATE INDEX IF NOT EXISTS idx_likes_user_id ON likes(user_id);
+
+-- Индекс для тегов видео
+CREATE INDEX IF NOT EXISTS idx_video_tags_video_id ON video_tags(video_id);
+CREATE INDEX IF NOT EXISTS idx_video_tags_tag_id ON video_tags(tag_id);
+
+CREATE OR REPLACE FUNCTION upsert_user(
+  p_yandex_id VARCHAR(255),
+  p_first_name VARCHAR(100),
+  p_last_name VARCHAR(100),
+  p_display_name VARCHAR(100),
+  p_avatar_url TEXT
+) RETURNS TABLE (
+  id UUID,
+  yandex_id VARCHAR(255),
+  first_name VARCHAR(100),
+  last_name VARCHAR(100),
+  display_name VARCHAR(100),
+  avatar_url TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+) AS $$
+BEGIN
+  RETURN QUERY
+  INSERT INTO users (
+    yandex_id,
+    first_name,
+    last_name,
+    display_name,
+    avatar_url,
+    created_at,
+    updated_at
+  ) VALUES (
+    p_yandex_id,
+    p_first_name,
+    p_last_name,
+    p_display_name,
+    p_avatar_url,
+    NOW(),
+    NOW()
+  )
+  ON CONFLICT (yandex_id) 
+  DO UPDATE SET
+    first_name = COALESCE(EXCLUDED.first_name, users.first_name),
+    last_name = COALESCE(EXCLUDED.last_name, users.last_name),
+    display_name = COALESCE(EXCLUDED.display_name, users.display_name),
+    avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
+    updated_at = NOW()
+  RETURNING 
+    users.id,
+    users.yandex_id,
+    users.first_name,
+    users.last_name,
+    users.display_name,
+    users.avatar_url,
+    users.created_at,
+    users.updated_at;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public'
+      AND table_name = 'videos'
+      AND column_name = 'views_count'
+  ) THEN
+    ALTER TABLE videos ADD COLUMN views_count INTEGER NOT NULL DEFAULT 0;
+    RAISE NOTICE '✅ Добавлен столбец videos.views_count';
+  ELSE
+    RAISE NOTICE '✅ Столбец videos.views_count уже существует';
+  END IF;
+END $$;
+
+-- Создание таблицы просмотров
+CREATE TABLE IF NOT EXISTS video_views (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL, -- допускаем анонимные (NULL)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- не даем одному пользователю "накручивать" просмотры одного видео многократно
+    CONSTRAINT uq_video_views_unique UNIQUE (video_id, user_id)
+);
+
+-- Включаем RLS
+ALTER TABLE video_views ENABLE ROW LEVEL SECURITY;
+
+-- Политики RLS (по аналогии с likes)
+DROP POLICY IF EXISTS "Video views are viewable by everyone" ON video_views;
+DROP POLICY IF EXISTS "Allow video view creation" ON video_views;
+DROP POLICY IF EXISTS "Allow video view removal" ON video_views;
+
+CREATE POLICY "Video views are viewable by everyone"
+ON video_views FOR SELECT
+USING (true);
+
+CREATE POLICY "Allow video view creation"
+ON video_views FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Allow video view removal"
+ON video_views FOR DELETE
+USING (true);
+
+-- Индексы для производительности
+CREATE INDEX IF NOT EXISTS idx_video_views_video_id ON video_views(video_id);
+CREATE INDEX IF NOT EXISTS idx_video_views_user_id ON video_views(user_id);
+CREATE INDEX IF NOT EXISTS idx_video_views_created_at ON video_views(created_at);
+
+-- Триггеры для автоматического поддержания videos.views_count
+CREATE OR REPLACE FUNCTION trg_video_views_after_insert() 
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE videos
+     SET views_count = views_count + 1
+   WHERE id = NEW.video_id;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION trg_video_views_after_delete() 
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE videos
+     SET views_count = GREATEST(views_count - 1, 0)
+   WHERE id = OLD.video_id;
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS video_views_ai ON video_views;
+CREATE TRIGGER video_views_ai
+AFTER INSERT ON video_views
+FOR EACH ROW EXECUTE FUNCTION trg_video_views_after_insert();
+
+DROP TRIGGER IF EXISTS video_views_ad ON video_views;
+CREATE TRIGGER video_views_ad
+AFTER DELETE ON video_views
+FOR EACH ROW EXECUTE FUNCTION trg_video_views_after_delete();
+
+CREATE OR REPLACE FUNCTION record_video_view(p_video_id uuid, p_user_id uuid)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO video_views (video_id, user_id)
+  VALUES (p_video_id, p_user_id)
+  ON CONFLICT (video_id, user_id) DO NOTHING;
+END;
+$$;

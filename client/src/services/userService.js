@@ -36,7 +36,6 @@ export class UserService {
               first_name: userData.first_name,
               last_name: userData.last_name,
               display_name: userData.display_name,
-              updated_at: new Date().toISOString()
             };
             // Не трогаем avatar_url, если явное значение не передано
             if (typeof userData.avatar_url !== 'undefined') {
@@ -45,7 +44,7 @@ export class UserService {
             return updatePayload;
           })
           .eq('yandex_id', userData.yandex_id)
-          .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at, updated_at')
+          .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
           .maybeSingle();
 
         if (error) this.handleError(error, 'updateUser');
@@ -63,9 +62,8 @@ export class UserService {
           .insert([{
             ...userData,
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
           }])
-          .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at, updated_at')
+          .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
           .maybeSingle();
 
         if (error) this.handleError(error, 'createUser');
@@ -95,7 +93,7 @@ export class UserService {
 
       const { data, error } = await supabase
         .from('users')
-        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at, updated_at')
+        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
         .eq('yandex_id', yandexId)
         .maybeSingle();
 
@@ -125,7 +123,7 @@ export class UserService {
 
       const { data, error } = await supabase
         .from('users')
-        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at, updated_at')
+        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
         .eq('id', userId)
         .maybeSingle();
 
@@ -160,7 +158,7 @@ export class UserService {
 
       const { data, error } = await supabase
         .from('users')
-        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at, updated_at, display_name')
+        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at, display_name')
         .eq('display_name', displayName)
         .maybeSingle();
 
@@ -188,7 +186,7 @@ export class UserService {
         .from('users')
         .update(profileData)
         .eq('id', userId)
-        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at, updated_at')
+        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
         .maybeSingle(); // Используем maybeSingle вместо single
 
       if (error) throw error;
@@ -226,7 +224,6 @@ export class UserService {
           likes_count,
           views_count,
           created_at,
-          updated_at
         `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false });

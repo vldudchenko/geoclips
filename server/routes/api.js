@@ -9,8 +9,8 @@ const config = require('../config/environment');
 const logger = require('../utils/logger');
 const cacheManager = require('../utils/cacheUtils');
 const supabase = require('../config/supabase');
-const { validateAddress, validateAccessToken } = require('../middleware/validation');
-const { requireAuth } = require('../middleware/auth');
+const { validateAddress, validateAccessToken } = require('../middleware/unified');
+const { requireAuth } = require('../middleware/unified');
 const { updateUserBasicData } = require('../services/userService');
 const { isValidCoordinates, calculateDistance } = require('../utils/geoUtils');
 

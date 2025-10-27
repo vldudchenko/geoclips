@@ -441,7 +441,7 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
 
           {/* Дата публикации */}
           <div className="tiktok-video-date">
-            Опубликовано: {formatPublishedAt(video.updated_at || video.created_at)}
+            Опубликовано: {formatPublishedAt(video.created_at)}
           </div>
           <div className="tiktok-video-stats">
             {video.views_count || 0} просмотров

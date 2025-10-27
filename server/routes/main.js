@@ -7,7 +7,7 @@ const router = express.Router();
 const path = require('path');
 const { readFile, access } = require('fs').promises;
 const logger = require('../utils/logger');
-const { requireAdmin } = require('../middleware/auth');
+const { requireAdmin } = require('../middleware/unified');
 
 /**
  * Главная страница админки
@@ -73,11 +73,11 @@ router.get('/admin.css', async (req, res) => {
 });
 
 /**
- * JS файл админки
+ * JS файл админки (объединенный)
  */
-router.get('/admin.js', async (req, res) => {
+router.get('/admin-unified.js', async (req, res) => {
   try {
-    const jsPath = path.join(__dirname, '../views/admin.js');
+    const jsPath = path.join(__dirname, '../views/admin-unified.js');
     const js = await readFile(jsPath, 'utf-8');
     res.type('application/javascript').send(js);
   } catch (error) {

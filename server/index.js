@@ -17,16 +17,20 @@ const config = require('./config/environment');
 const passport = require('./config/passport');
 const logger = require('./utils/logger');
 
-// Middleware
-const { handleMulterError, errorHandler, notFoundHandler } = require('./middleware/errorHandler');
-const { requireAuth, optionalAuth } = require('./middleware/auth');
-const { limiters } = require('./middleware/rateLimiter');
+// Middleware (объединенные)
 const { 
+  handleMulterError, 
+  errorHandler, 
+  notFoundHandler,
+  requireAuth, 
+  optionalAuth,
+  limiters,
   sanitizeInput, 
   setSecurityHeaders, 
   preventSqlInjection,
-  logSuspiciousActivity 
-} = require('./middleware/security');
+  logSuspiciousActivity,
+  checkRequestSize
+} = require('./middleware/unified');
 
 // Роуты
 const authRoutes = require('./routes/auth');
@@ -77,7 +81,6 @@ app.use(logSuspiciousActivity);
 
 // Body parsing middleware
 // Дополнительная защита по размеру запроса до парсинга тела
-const { checkRequestSize } = require('./middleware/security');
 app.use(checkRequestSize(config.upload.maxFieldSize));
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
