@@ -189,7 +189,9 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
   };
 
   const handleYandexLogin = () => {
-    window.location.href = `${API_BASE_URL}/auth/yandex`;
+    // Для редиректа нужен полный URL, не пустая строка
+    const authUrl = API_BASE_URL ? `${API_BASE_URL}/auth/yandex` : 'http://localhost:5000/auth/yandex';
+    window.location.href = authUrl;
   };
 
   // Закрытие меню при клике вне его

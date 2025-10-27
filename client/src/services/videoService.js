@@ -239,7 +239,11 @@ export class VideoService {
    */
   static async uploadVideoFile(file, userId, videoId) {
     try {
-      const fileName = `${userId}/${videoId}/${file.name}`;
+      // Извлекаем расширение файла
+      const fileExtension = file.name.split('.').pop();
+      // Используем только videoId и расширение для безопасного имени файла
+      const safeFileName = `${videoId}.${fileExtension}`;
+      const fileName = `${userId}/${videoId}/${safeFileName}`;
       
       const { data, error } = await supabase.storage
         .from('geoclips-videos')

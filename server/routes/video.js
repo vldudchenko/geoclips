@@ -57,21 +57,40 @@ router.post('/validate-video', upload.single('video'), validateFile('video'),
 
     
     // Получаем информацию о видео
-    await new Promise((resolve) => {
-      ffmpeg.ffprobe(inputPath, (err, metadata) => {
-        if (err) {
-          errorMessage = 'Не удалось обработать видео файл';
-          isValid = false;
-        } else {
-          duration = metadata.format.duration;
-          if (duration > 60) {
-            errorMessage = 'Длительность видео не должна превышать 60 секунд';
-            isValid = false;
+    // В development режиме пропускаем проверку FFmpeg если он не установлен
+    try {
+      await new Promise((resolve, reject) => {
+        ffmpeg.ffprobe(inputPath, (err, metadata) => {
+          if (err) {
+            // В development режиме не требуем FFmpeg
+            if (config.nodeEnv === 'development') {
+              logger.warn('VIDEO', 'FFmpeg не доступен, пропускаем проверку длительности');
+              duration = 0; // Неизвестная длительность
+              isValid = true;
+            } else {
+              errorMessage = 'Не удалось обработать видео файл';
+              isValid = false;
+            }
+          } else {
+            duration = metadata.format.duration;
+            if (duration > 60) {
+              errorMessage = 'Длительность видео не должна превышать 60 секунд';
+              isValid = false;
+            }
           }
-        }
-        resolve();
+          resolve();
+        });
       });
-    });
+    } catch (ffmpegError) {
+      if (config.nodeEnv === 'development') {
+        logger.warn('VIDEO', 'FFmpeg не установлен, пропускаем проверку', ffmpegError);
+        isValid = true;
+        duration = 0;
+      } else {
+        errorMessage = 'Не удалось обработать видео файл. Установите FFmpeg';
+        isValid = false;
+      }
+    }
 
     // Удаляем временный файл
     await fs.unlink(inputPath);
