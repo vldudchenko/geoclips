@@ -17,12 +17,29 @@ console.log('Tags routes registered: GET /, POST /, DELETE /bulk, DELETE /:id, P
  * Получение списка тегов
  */
 router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
-  logger.info('ADMIN', 'Запрос списка тегов');
+  const { search, sortBy = 'name', order = 'asc', limit, offset } = req.query;
   
-  const { data: tags, error } = await supabase
+  let queryBuilder = supabase
     .from('tags')
-    .select('id, name, usage_count, user_id, created_at')
-    .order('name', { ascending: true });
+    .select('id, name, usage_count, user_id, created_at', { count: 'exact' });
+
+  // Применяем поиск, если указан
+  if (search && search.trim()) {
+    queryBuilder = queryBuilder.ilike('name', `%${search.trim()}%`);
+  }
+
+  // Сортировка
+  const ascending = order === 'asc';
+  queryBuilder = queryBuilder.order(sortBy, { ascending });
+
+  // Пагинация
+  if (limit && offset) {
+    const limitNum = parseInt(limit);
+    const offsetNum = parseInt(offset);
+    queryBuilder = queryBuilder.range(offsetNum, offsetNum + limitNum - 1);
+  }
+
+  const { data: tags, error, count } = await queryBuilder;
 
   if (error) {
     return apiResponse.sendError(res, error, {
@@ -56,15 +73,23 @@ router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
     creator_name: tag.user_id ? usersMap[tag.user_id] || 'Неизвестно' : 'Система'
   })) || [];
 
-  logger.info('ADMIN', 'Получены теги');
-  apiResponse.sendSuccess(res, { tags: tagsWithCreator });
+  // Если есть пагинация, возвращаем с метаданными
+  if (limit && offset) {
+    apiResponse.sendSuccess(res, apiResponse.formatPaginatedResponse(
+      tagsWithCreator,
+      count,
+      parseInt(limit),
+      parseInt(offset)
+    ));
+  } else {
+    apiResponse.sendSuccess(res, { tags: tagsWithCreator });
+  }
 }));
 
 /**
  * Создание нового тега
  */
 router.post('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
-  logger.info('ADMIN', 'POST /tags - запрос на создание тега');
   const { name } = req.body;
   
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -83,7 +108,6 @@ router.post('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
     });
   }
   
-  logger.info('ADMIN', 'Создание тега', { name: tagName });
   
   try {
     // Получаем ID пользователя из сессии (если есть)
@@ -92,7 +116,6 @@ router.post('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
     // Используем функцию из dbUtils для создания тега
     const tag = await dbUtils.getOrCreateTag(tagName, userId);
     
-    logger.success('ADMIN', 'Тег создан', { id: tag.id, name: tag.name });
     
     apiResponse.sendSuccess(res, {
       message: 'Тег успешно создан',
@@ -128,7 +151,6 @@ router.delete('/bulk', requireAdmin, apiResponse.asyncHandler(async (req, res) =
     });
   }
   
-  logger.info('ADMIN', 'Массовое удаление тегов', { count: tagIds.length });
   
   // Используем общую функцию удаления
   const result = await dbUtils.deleteTagsWithCleanup(tagIds);
@@ -141,11 +163,6 @@ router.delete('/bulk', requireAdmin, apiResponse.asyncHandler(async (req, res) =
     });
   }
 
-  logger.info('ADMIN', 'Массовое удаление завершено', { 
-    total: tagIds.length, 
-    deleted: result.deletedCount, 
-    errors: result.errors?.length || 0 
-  });
   
   apiResponse.sendSuccess(res, {
     message: 'Массовое удаление завершено',
@@ -161,7 +178,6 @@ router.delete('/bulk', requireAdmin, apiResponse.asyncHandler(async (req, res) =
  */
 router.delete('/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   const tagId = req.params.id;
-  logger.info('ADMIN', 'Удаление тега', { tagId });
 
   // Получаем информацию о теге перед удалением
   const { data: tag, error: tagError } = await supabase
@@ -188,11 +204,7 @@ router.delete('/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) =>
     });
   }
 
-  logger.success('ADMIN', 'Тег успешно удален', { 
-    tagId, 
-    tagName: tag.name, 
-    usageCount: tag.usage_count 
-  });
+  
 
   apiResponse.sendSuccess(res, {
     message: 'Тег успешно удален',
@@ -205,8 +217,7 @@ router.delete('/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) =>
  * Исправление счетчиков использования тегов
  */
 router.post('/fix-counters', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
-  logger.info('ADMIN', 'Исправление счетчиков использования тегов');
-  
+    
   // Получаем все теги
   const { data: tags, error: tagsError } = await supabase
     .from('tags')
@@ -232,10 +243,7 @@ router.post('/fix-counters', requireAdmin, apiResponse.asyncHandler(async (req, 
   const tagIds = tags.map(t => t.id);
   const updateResult = await dbUtils.updateTagCounters(tagIds, true);
 
-  logger.success('ADMIN', 'Исправление счетчиков завершено', { 
-    totalTags: tags.length, 
-    fixedCount: updateResult.updatedCount 
-  });
+ 
   
   apiResponse.sendSuccess(res, {
     message: `Исправлено ${updateResult.updatedCount} из ${tags.length} тегов`,

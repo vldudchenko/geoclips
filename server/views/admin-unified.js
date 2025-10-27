@@ -54,6 +54,9 @@ function switchTab(tabName) {
         case 'tags':
             loadTags();
             break;
+        case 'comments':
+            loadComments();
+            break;
         case 'system':
             loadSystemInfo();
             break;
@@ -70,7 +73,7 @@ async function logout() {
     if (!confirm('Вы уверены, что хотите выйти из админки?')) return;
     
     try {
-        const response = await fetch('/admin/logout', { method: 'POST' });
+        const response = await fetch('/admin/logout', { method: 'POST', credentials: 'include' });
         
         if (response.ok) {
             window.location.href = '/admin';
@@ -90,7 +93,7 @@ async function logout() {
  */
 async function loadStats() {
     try {
-        const response = await fetch('/admin/stats');
+        const response = await fetch('/admin/stats', { credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
@@ -205,27 +208,45 @@ function displayUsers(users) {
         return;
     }
     
-    container.innerHTML = users.map(user => `
-        <div class="user-card">
-            <div class="user-info">
-                <div class="user-avatar">
-                    ${user.avatar_url ? `<img src="${user.avatar_url}" alt="Avatar">` : '👤'}
-                </div>
-                <div class="user-details">
-                    <h3>${user.display_name || 'Без имени'}</h3>
-                    <p>ID: ${user.id}</p>
-                    <p>Yandex ID: ${user.yandex_id}</p>
-                    <p>Видео: ${user.videosCount || 0}</p>
-                    <p>Регистрация: ${new Date(user.created_at).toLocaleDateString()}</p>
-                </div>
-            </div>
-            <div class="user-actions">
-                <button class="btn btn-danger" onclick="deleteUser('${user.id}', '${user.display_name}')">
-                    🗑️ Удалить
-                </button>
-            </div>
-        </div>
-    `).join('');
+    container.innerHTML = `
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>Аватар</th>
+                    <th>Логин</th>
+                    <th>ID</th>
+                    <th>Видео</th>
+                    <th>Регистрация</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${users.map(user => `
+                    <tr id="user-row-${user.id}">
+                        <td class="user-avatar-cell">
+                            <div class="user-avatar">
+                                ${user.avatar_url ? `<img src="${user.avatar_url}" alt="Avatar">` : '👤'}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="user-name">${user.display_name || 'Без имени'}</div>
+                            <div class="user-id">Yandex: ${user.yandex_id}</div>
+                        </td>
+                        <td>
+                            <div class="user-id">${user.id}</div>
+                        </td>
+                        <td class="user-stats">${user.videosCount || 0}</td>
+                        <td class="user-date">${new Date(user.created_at).toLocaleDateString()}</td>
+                        <td class="user-actions-cell">
+                            <button class="btn btn-danger btn-small" onclick="deleteUser('${user.id}', '${user.display_name}')">
+                                🗑️
+                            </button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
 }
 
 /**
@@ -318,29 +339,95 @@ function displayVideos(videos) {
         return;
     }
     
-    container.innerHTML = videos.map(video => `
-        <div class="video-card">
-            <div class="video-checkbox">
-                <input type="checkbox" value="${video.id}" onchange="toggleVideoSelection('${video.id}')">
-            </div>
-            <div class="video-info">
-                <h3>${video.description || 'Без описания'}</h3>
-                <p>Автор: ${video.users?.display_name || 'Неизвестно'}</p>
-                <p>Просмотры: ${video.views_count || 0}</p>
-                <p>Лайки: ${video.likes_count || 0}</p>
-                <p>Дата: ${new Date(video.created_at).toLocaleDateString()}</p>
-                ${video.latitude && video.longitude ? 
-                    `<p>Координаты: ${video.latitude.toFixed(4)}, ${video.longitude.toFixed(4)}</p>` : 
-                    '<p>Координаты: не указаны</p>'
-                }
-            </div>
-            <div class="video-actions">
-                <button class="btn btn-danger" onclick="deleteVideo('${video.id}')">
-                    🗑️ Удалить
-                </button>
-            </div>
-        </div>
-    `).join('');
+    container.innerHTML = `
+        <table class="videos-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Описание</th>
+                    <th>Автор</th>
+                    <th>Просмотры</th>
+                    <th>Лайки</th>
+                    <th>Дата</th>
+                    <th>Координаты</th>
+                    <th>Теги</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${videos.map(video => `
+                    <tr id="video-row-${video.id}">
+                        <td class="video-checkbox-cell">
+                            <input type="checkbox" value="${video.id}" onchange="toggleVideoSelection('${video.id}')">
+                        </td>
+                        <td>
+                            <div class="video-description">${video.description || 'Без описания'}</div>
+                        </td>
+                        <td>
+                            <div class="video-author">${video.users?.display_name || 'Неизвестно'}</div>
+                        </td>
+                        <td class="video-stats">${video.views_count || 0}</td>
+                        <td class="video-stats">${video.likes_count || 0}</td>
+                        <td class="video-date">${new Date(video.created_at).toLocaleDateString()}</td>
+                        <td class="video-coords">
+                            ${video.latitude && video.longitude ? 
+                                `${video.latitude.toFixed(4)}, ${video.longitude.toFixed(4)}` : 
+                                'Не указаны'
+                            }
+                        </td>
+                        <td>
+                            <div class="video-tags" id="video-tags-${video.id}">
+                                <div class="loading-tags">Загрузка...</div>
+                            </div>
+                        </td>
+                        <td class="video-actions-cell">
+                            <button class="btn btn-tags btn-small" onclick="openTagsModal('${video.id}', '${video.description || 'Без описания'}', '${video.users?.display_name || 'Неизвестно'}')">
+                                🏷️
+                            </button>
+                            <button class="btn btn-danger btn-small" onclick="deleteVideo('${video.id}')">
+                                🗑️
+                            </button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    // Загружаем теги для каждого видео
+    videos.forEach(video => {
+        loadVideoTags(video.id);
+    });
+}
+
+/**
+ * Загрузка тегов для конкретного видео
+ */
+async function loadVideoTags(videoId) {
+    try {
+        const response = await fetch(`/admin/videos/admin/${videoId}/tags`, { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        const tags = data.tags || [];
+        
+        const tagsContainer = document.getElementById(`video-tags-${videoId}`);
+        if (tagsContainer) {
+            if (tags.length === 0) {
+                tagsContainer.innerHTML = '<span class="no-tags">Нет тегов</span>';
+            } else {
+                tagsContainer.innerHTML = tags.map(tag => 
+                    `<span class="video-tag">${tag.name}</span>`
+                ).join('');
+            }
+        }
+    } catch (error) {
+        console.error(`Ошибка загрузки тегов для видео ${videoId}:`, error);
+        const tagsContainer = document.getElementById(`video-tags-${videoId}`);
+        if (tagsContainer) {
+            tagsContainer.innerHTML = '<span class="error-tags">Ошибка</span>';
+        }
+    }
 }
 
 /**
@@ -415,9 +502,17 @@ function toggleVideoSelection(videoId) {
         selectedVideoIds.push(videoId);
     }
     
+    // Обновляем визуальное выделение
+    const videoRow = document.getElementById(`video-row-${videoId}`);
+    if (videoRow) {
+        videoRow.classList.toggle('selected', selectedVideoIds.includes(videoId));
+    }
+    
     // Обновляем кнопку массового удаления
     const bulkDeleteBtn = document.getElementById('bulk-delete-videos-btn');
-    bulkDeleteBtn.disabled = selectedVideoIds.length === 0;
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.disabled = selectedVideoIds.length === 0;
+    }
 }
 
 /**
@@ -458,6 +553,163 @@ async function bulkDeleteVideos() {
 
 // ==================== ТЕГИ ====================
 
+// Глобальные переменные для тегов
+let selectedTagIds = [];
+
+/**
+ * Переключение выбора тега
+ */
+function toggleTagSelection(tagId) {
+    const index = selectedTagIds.indexOf(tagId);
+    if (index > -1) {
+        selectedTagIds.splice(index, 1);
+    } else {
+        selectedTagIds.push(tagId);
+    }
+    
+    // Обновляем визуальное выделение
+    const tagRow = document.getElementById(`tag-row-${tagId}`);
+    if (tagRow) {
+        tagRow.classList.toggle('selected', selectedTagIds.includes(tagId));
+    }
+    
+    // Обновляем кнопку массового удаления
+    const bulkDeleteBtn = document.getElementById('bulk-delete-tags-btn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.disabled = selectedTagIds.length === 0;
+    }
+}
+
+/**
+ * Массовое удаление тегов
+ */
+async function bulkDeleteTags() {
+    if (selectedTagIds.length === 0) {
+        showNotification('Выберите теги для удаления', 'warning');
+        return;
+    }
+    
+    if (!confirm(`Вы уверены, что хотите удалить ${selectedTagIds.length} тегов?\n\nЭто действие нельзя отменить!`)) {
+        return;
+    }
+    
+    try {
+        showNotification('Удаление тегов...', 'info');
+        
+        const response = await fetch('/admin/tags/bulk', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ tagIds: selectedTagIds })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification(`✅ Успешно удалено ${result.deletedCount} тегов`, 'success');
+            selectedTagIds = [];
+            await loadTags(); // Перезагружаем список тегов
+        } else {
+            throw new Error(result.error || 'Неизвестная ошибка');
+        }
+        
+    } catch (error) {
+        console.error('Ошибка массового удаления тегов:', error);
+        showNotification(`❌ Ошибка массового удаления тегов: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Сброс выбора всех тегов
+ */
+function clearTagSelection() {
+    selectedTagIds = [];
+    
+    // Снимаем визуальное выделение со всех строк
+    const selectedRows = document.querySelectorAll('.tags-table tbody tr.selected');
+    selectedRows.forEach(row => row.classList.remove('selected'));
+    
+    // Снимаем галочки со всех чекбоксов
+    const checkboxes = document.querySelectorAll('.tags-table tbody input[type="checkbox"]');
+    checkboxes.forEach(checkbox => checkbox.checked = false);
+    
+    // Обновляем кнопку массового удаления
+    const bulkDeleteBtn = document.getElementById('bulk-delete-tags-btn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.disabled = true;
+    }
+    
+    showNotification('Выбор тегов сброшен', 'info');
+}
+
+/**
+ * Выбор всех тегов
+ */
+function selectAllTags() {
+    const checkboxes = document.querySelectorAll('.tags-table tbody input[type="checkbox"]');
+    const allTagIds = Array.from(checkboxes).map(checkbox => checkbox.value);
+    
+    selectedTagIds = [...allTagIds];
+    
+    // Ставим галочки на все чекбоксы
+    checkboxes.forEach(checkbox => checkbox.checked = true);
+    
+    // Добавляем визуальное выделение ко всем строкам
+    const rows = document.querySelectorAll('.tags-table tbody tr');
+    rows.forEach(row => row.classList.add('selected'));
+    
+    // Обновляем кнопку массового удаления
+    const bulkDeleteBtn = document.getElementById('bulk-delete-tags-btn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.disabled = false;
+    }
+    
+    showNotification(`Выбрано ${selectedTagIds.length} тегов`, 'info');
+}
+
+/**
+ * Переключение выбора всех тегов
+ */
+function toggleAllTags(headerCheckbox) {
+    const checkboxes = document.querySelectorAll('.tags-table tbody input[type="checkbox"]');
+    const isChecked = headerCheckbox.checked;
+    
+    if (isChecked) {
+        // Выбираем все теги
+        selectedTagIds = Array.from(checkboxes).map(checkbox => checkbox.value);
+        checkboxes.forEach(checkbox => checkbox.checked = true);
+        
+        // Добавляем визуальное выделение ко всем строкам
+        const rows = document.querySelectorAll('.tags-table tbody tr');
+        rows.forEach(row => row.classList.add('selected'));
+        
+        showNotification(`Выбрано ${selectedTagIds.length} тегов`, 'info');
+    } else {
+        // Снимаем выбор со всех тегов
+        selectedTagIds = [];
+        checkboxes.forEach(checkbox => checkbox.checked = false);
+        
+        // Убираем визуальное выделение со всех строк
+        const rows = document.querySelectorAll('.tags-table tbody tr');
+        rows.forEach(row => row.classList.remove('selected'));
+        
+        showNotification('Выбор тегов сброшен', 'info');
+    }
+    
+    // Обновляем кнопку массового удаления
+    const bulkDeleteBtn = document.getElementById('bulk-delete-tags-btn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.disabled = selectedTagIds.length === 0;
+    }
+}
+
 /**
  * Загрузка тегов
  */
@@ -465,7 +717,7 @@ async function loadTags() {
     try {
         showNotification('Загрузка тегов...', 'info');
         
-        const response = await fetch('/admin/tags');
+        const response = await fetch('/admin/tags', { credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
@@ -490,21 +742,42 @@ function displayTags(tags) {
         return;
     }
     
-    container.innerHTML = tags.map(tag => `
-        <div class="tag-card">
-            <div class="tag-info">
-                <h3>${tag.name}</h3>
-                <p>Использований: ${tag.usage_count || 0}</p>
-                <p>Создатель: ${tag.creator_name || 'Система'}</p>
-                <p>Дата создания: ${new Date(tag.created_at).toLocaleDateString()}</p>
-            </div>
-            <div class="tag-actions">
-                <button class="btn btn-danger" onclick="deleteTag('${tag.id}', '${tag.name}')">
-                    🗑️ Удалить
-                </button>
-            </div>
-        </div>
-    `).join('');
+    container.innerHTML = `
+        <table class="tags-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Название</th>
+                    <th>Использований</th>
+                    <th>Создатель</th>
+                    <th>Дата создания</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tags.map(tag => `
+                    <tr id="tag-row-${tag.id}">
+                        <td class="tag-checkbox-cell">
+                            <input type="checkbox" value="${tag.id}" onchange="toggleTagSelection('${tag.id}')">
+                        </td>
+                        <td>
+                            <div class="tag-name">${tag.name}</div>
+                        </td>
+                        <td class="tag-usage">${tag.usage_count || 0}</td>
+                        <td>
+                            <div class="tag-creator">${tag.creator_name || 'Система'}</div>
+                        </td>
+                        <td class="tag-date">${new Date(tag.created_at).toLocaleDateString()}</td>
+                        <td class="tag-actions-cell">
+                            <button class="btn btn-danger btn-small" onclick="deleteTag('${tag.id}', '${tag.name}')">
+                                🗑️
+                            </button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
 }
 
 /**
@@ -512,15 +785,27 @@ function displayTags(tags) {
  */
 async function createTag() {
     const nameInput = document.getElementById('new-tag-name');
+    const tagForm = document.querySelector('.tag-form');
     const name = nameInput.value.trim();
     
     if (!name) {
         showNotification('Введите название тега', 'warning');
+        nameInput.focus();
         return;
     }
     
     if (name.length > 50) {
         showNotification('Название тега не должно превышать 50 символов', 'warning');
+        nameInput.focus();
+        return;
+    }
+    
+    // Проверяем, не существует ли уже такой тег
+    const normalizedName = name.toLowerCase().trim();
+    const existingTag = allTags.find(tag => tag.name.toLowerCase() === normalizedName);
+    if (existingTag) {
+        showNotification('Тег с таким названием уже существует', 'warning');
+        nameInput.focus();
         return;
     }
     
@@ -530,21 +815,42 @@ async function createTag() {
         const response = await fetch('/admin/tags', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ name })
         });
         
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
         
         const result = await response.json();
-        showNotification('Тег создан', 'success');
+        
+        // Анимация успеха
+        if (tagForm) {
+            tagForm.classList.add('success');
+            setTimeout(() => tagForm.classList.remove('success'), 600);
+        }
+        
+        showNotification(`✅ Тег "${result.tag?.name || name}" успешно создан`, 'success');
         
         // Очищаем поле и перезагружаем
         nameInput.value = '';
-        loadTags();
+        await loadTags();
+        
     } catch (error) {
         console.error('Ошибка создания тега:', error);
-        showNotification('Ошибка создания тега', 'error');
+        showNotification(`❌ Ошибка создания тега: ${error.message}`, 'error');
     }
+}
+
+/**
+ * Создание быстрого тега
+ */
+async function createQuickTag(tagName) {
+    const nameInput = document.getElementById('new-tag-name');
+    nameInput.value = tagName;
+    await createTag();
 }
 
 /**
@@ -558,17 +864,233 @@ async function deleteTag(tagId, tagName) {
     try {
         showNotification('Удаление тега...', 'info');
         
-        const response = await fetch(`/admin/tags/${tagId}`, { method: 'DELETE' });
+        const response = await fetch(`/admin/tags/${tagId}`, { method: 'DELETE', credentials: 'include' });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        showNotification(`✅ Тег "${tagName}" успешно удален`, 'success');
+        
+        // Перезагружаем список
+        await loadTags();
+    } catch (error) {
+        console.error('Ошибка удаления тега:', error);
+        showNotification(`❌ Ошибка удаления тега: ${error.message}`, 'error');
+    }
+}
+
+// ==================== МОДАЛЬНОЕ ОКНО ТЕГОВ ====================
+
+let currentVideoId = null;
+let currentVideoInfo = null;
+let availableTags = [];
+let selectedTagsForVideo = [];
+
+/**
+ * Открытие модального окна для добавления тегов к видео
+ */
+async function openTagsModal(videoId, videoDescription, videoAuthor) {
+    currentVideoId = videoId;
+    currentVideoInfo = {
+        description: videoDescription,
+        author: videoAuthor
+    };
+    
+    try {
+        // Загружаем все доступные теги
+        const tagsResponse = await fetch('/admin/tags', { credentials: 'include' });
+        if (!tagsResponse.ok) throw new Error(`HTTP ${tagsResponse.status}`);
+        const tagsData = await tagsResponse.json();
+        availableTags = tagsData.tags || [];
+        
+        // Загружаем текущие теги видео
+        const videoTagsResponse = await fetch(`/admin/videos/admin/${videoId}/tags`, { credentials: 'include' });
+        if (!videoTagsResponse.ok) throw new Error(`HTTP ${videoTagsResponse.status}`);
+        const videoTagsData = await videoTagsResponse.json();
+        selectedTagsForVideo = videoTagsData.tags || [];
+        
+        // Создаем и показываем модальное окно
+        createTagsModal();
+        showTagsModal();
+        
+    } catch (error) {
+        console.error('Ошибка загрузки тегов:', error);
+        showNotification('Ошибка загрузки тегов', 'error');
+    }
+}
+
+/**
+ * Создание HTML модального окна
+ */
+function createTagsModal() {
+    const modalHtml = `
+        <div class="tags-modal" id="tags-modal">
+            <div class="tags-modal-content">
+                <div class="tags-modal-header">
+                    <h3 class="tags-modal-title">🏷️ Управление тегами видео</h3>
+                    <button class="tags-modal-close" onclick="closeTagsModal()">×</button>
+                </div>
+                
+                <div class="tags-modal-body">
+                    <div class="video-info">
+                        <h4>${currentVideoInfo.description}</h4>
+                        <p>Автор: ${currentVideoInfo.author}</p>
+                    </div>
+                    
+                    <div class="tags-search">
+                        <input type="text" id="tags-search-input" placeholder="Поиск тегов..." onkeyup="filterTags()">
+                    </div>
+                    
+                    <div class="tags-list" id="tags-list">
+                        ${renderTagsList()}
+                    </div>
+                </div>
+                
+                <div class="tags-modal-footer">
+                    <button class="btn btn-secondary" onclick="closeTagsModal()">Отмена</button>
+                    <button class="btn btn-tags" onclick="saveVideoTags()">Сохранить теги</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Удаляем существующее модальное окно если есть
+    const existingModal = document.getElementById('tags-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Добавляем новое модальное окно
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Добавляем обработчик для закрытия по клику вне модального окна
+    const modal = document.getElementById('tags-modal');
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeTagsModal();
+        }
+    });
+}
+
+/**
+ * Рендеринг списка тегов
+ */
+function renderTagsList() {
+    const searchTerm = document.getElementById('tags-search-input')?.value.toLowerCase() || '';
+    const filteredTags = availableTags.filter(tag => 
+        tag.name.toLowerCase().includes(searchTerm)
+    );
+    
+    return filteredTags.map(tag => {
+        const isSelected = selectedTagsForVideo.some(selectedTag => selectedTag.id === tag.id);
+        return `
+            <div class="tag-item ${isSelected ? 'selected' : ''}" data-tag-id="${tag.id}">
+                <div class="tag-item-info">
+                    <div class="tag-item-name">${tag.name}</div>
+                    <div class="tag-item-usage">Использований: ${tag.usage_count || 0}</div>
+                </div>
+                <input type="checkbox" class="tag-item-checkbox" ${isSelected ? 'checked' : ''} 
+                       onchange="toggleTagSelection('${tag.id}')">
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Фильтрация тегов по поиску
+ */
+function filterTags() {
+    const tagsList = document.getElementById('tags-list');
+    if (tagsList) {
+        tagsList.innerHTML = renderTagsList();
+    }
+}
+
+/**
+ * Переключение выбора тега
+ */
+function toggleTagSelection(tagId) {
+    const tagIndex = selectedTagsForVideo.findIndex(tag => tag.id === tagId);
+    const tag = availableTags.find(t => t.id === tagId);
+    
+    if (tagIndex > -1) {
+        // Убираем тег
+        selectedTagsForVideo.splice(tagIndex, 1);
+    } else {
+        // Добавляем тег
+        selectedTagsForVideo.push(tag);
+    }
+    
+    // Обновляем визуальное выделение
+    const tagItem = document.querySelector(`[data-tag-id="${tagId}"]`);
+    if (tagItem) {
+        tagItem.classList.toggle('selected', selectedTagsForVideo.some(t => t.id === tagId));
+    }
+}
+
+/**
+ * Показать модальное окно
+ */
+function showTagsModal() {
+    const modal = document.getElementById('tags-modal');
+    if (modal) {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+/**
+ * Закрыть модальное окно
+ */
+function closeTagsModal() {
+    const modal = document.getElementById('tags-modal');
+    if (modal) {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+        
+        // Удаляем модальное окно через некоторое время
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+    }
+}
+
+/**
+ * Сохранение тегов для видео
+ */
+async function saveVideoTags() {
+    if (!currentVideoId) return;
+    
+    try {
+        showNotification('Сохранение тегов...', 'info');
+        
+        const response = await fetch(`/admin/videos/admin/${currentVideoId}/tags`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                tagIds: selectedTagsForVideo.map(tag => tag.id)
+            })
+        });
+        
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const result = await response.json();
-        showNotification('Тег удален', 'success');
         
-        // Перезагружаем список
-        loadTags();
+        if (result.success) {
+            showNotification(`Теги сохранены для видео`, 'success');
+            closeTagsModal();
+        } else {
+            throw new Error(result.error || 'Неизвестная ошибка');
+        }
+        
     } catch (error) {
-        console.error('Ошибка удаления тега:', error);
-        showNotification('Ошибка удаления тега', 'error');
+        console.error('Ошибка сохранения тегов:', error);
+        showNotification('Ошибка сохранения тегов', 'error');
     }
 }
 
@@ -583,7 +1105,7 @@ async function fixTagCounters() {
     try {
         showNotification('Исправление счетчиков...', 'info');
         
-        const response = await fetch('/admin/tags/fix-counters', { method: 'POST' });
+        const response = await fetch('/admin/tags/fix-counters', { method: 'POST', credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const result = await response.json();
@@ -595,6 +1117,161 @@ async function fixTagCounters() {
         console.error('Ошибка исправления счетчиков:', error);
         showNotification('Ошибка исправления счетчиков', 'error');
     }
+}
+
+// ==================== КОММЕНТАРИИ ====================
+
+/**
+ * Загрузка комментариев
+ */
+async function loadComments() {
+    try {
+        showNotification('Загрузка комментариев...', 'info');
+        
+        // Получаем параметры фильтрации
+        const videoFilter = document.getElementById('comment-video-filter')?.value || '';
+        const sortValue = document.getElementById('comment-sort')?.value || 'created_at:desc';
+        const [sortBy, order] = sortValue.split(':');
+        
+        // Формируем URL с параметрами
+        let url = '/admin/comments/admin/all?limit=100';
+        if (videoFilter) {
+            url += `&videoId=${videoFilter}`;
+        }
+        url += `&sortBy=${sortBy}&order=${order}`;
+        
+        const response = await fetch(url, { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        const comments = data.comments || [];
+        
+        displayComments(comments);
+        
+        // Обновляем статистику
+        document.getElementById('comments-total').textContent = data.total || 0;
+        
+        // Загружаем дополнительную статистику
+        loadCommentsStats();
+        
+        showNotification(`Загружено ${comments.length} комментариев`, 'success');
+    } catch (error) {
+        console.error('Ошибка загрузки комментариев:', error);
+        showNotification('Ошибка загрузки комментариев', 'error');
+        document.getElementById('comments-container').innerHTML = 
+            '<div class="error">Ошибка загрузки комментариев</div>';
+    }
+}
+
+/**
+ * Загрузка статистики по комментариям
+ */
+async function loadCommentsStats() {
+    try {
+        const response = await fetch('/admin/stats', { credentials: 'include' });
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        
+        // Обновляем статистику за последние 24 часа
+        // (предполагается, что бэкенд возвращает эти данные)
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        
+        // Это временное решение, можно добавить отдельный эндпоинт для статистики комментариев
+        document.getElementById('comments-recent').textContent = '-';
+    } catch (error) {
+        console.error('Ошибка загрузки статистики комментариев:', error);
+    }
+}
+
+/**
+ * Отображение списка комментариев
+ */
+function displayComments(comments) {
+    const container = document.getElementById('comments-container');
+    
+    if (!comments || comments.length === 0) {
+        container.innerHTML = '<div class="empty-state">📭 Комментариев пока нет</div>';
+        return;
+    }
+    
+    container.innerHTML = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Автор</th>
+                    <th>Текст</th>
+                    <th>Видео</th>
+                    <th>Дата</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${comments.map(comment => `
+                    <tr>
+                        <td class="user-cell">
+                            <div class="user-info">
+                                ${comment.users?.avatar_url 
+                                    ? `<img src="${comment.users.avatar_url}" alt="Avatar" class="user-avatar">` 
+                                    : '<div class="user-avatar-placeholder">👤</div>'}
+                                <span>${comment.users?.display_name || 'Неизвестно'}</span>
+                            </div>
+                        </td>
+                        <td class="comment-text-cell">
+                            <div class="comment-text">${escapeHtml(comment.text)}</div>
+                        </td>
+                        <td class="video-desc-cell">
+                            <div class="video-desc-short">${escapeHtml(comment.videos?.description || 'Без описания')}</div>
+                        </td>
+                        <td class="date-cell">
+                            ${formatDate(comment.created_at)}
+                        </td>
+                        <td class="actions-cell">
+                            <button class="btn btn-danger btn-small" onclick="deleteComment('${comment.id}', '${escapeHtml(comment.text.substring(0, 30))}...')">
+                                🗑️
+                            </button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+/**
+ * Удаление комментария
+ */
+async function deleteComment(commentId, commentPreview) {
+    if (!confirm(`Удалить комментарий?\n\n"${commentPreview}"`)) {
+        return;
+    }
+    
+    try {
+        showNotification('Удаление комментария...', 'info');
+        
+        const response = await fetch(`/admin/comments/admin/${commentId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        showNotification('Комментарий удален', 'success');
+        loadComments(); // Перезагружаем список
+    } catch (error) {
+        console.error('Ошибка удаления комментария:', error);
+        showNotification('Ошибка удаления комментария', 'error');
+    }
+}
+
+/**
+ * Экранирование HTML
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // ==================== СИСТЕМА ====================

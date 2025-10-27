@@ -14,7 +14,6 @@ const apiResponse = require('../middleware/apiResponse');
  * Получение списка пользователей
  */
 router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
-  logger.info('ADMIN', 'Запрос списка пользователей');
   
   const { data: users, error } = await supabase
     .from('users')
@@ -39,7 +38,6 @@ router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
     videosCount: videosCounts[user.id] || 0
   })) : [];
 
-  logger.success('ADMIN', 'Получены пользователи');
   apiResponse.sendSuccess(res, { users: processedUsers });
 }));
 
@@ -49,7 +47,6 @@ router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
 router.get('/search', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   const { query, sortBy = 'created_at', order = 'desc', limit = 50, offset = 0 } = req.query;
   
-  logger.info('ADMIN', 'Поиск пользователей', { query, sortBy, order, limit, offset });
 
   let queryBuilder = supabase.from('users').select(
     'id, yandex_id, first_name, last_name, display_name, avatar_url, created_at',
@@ -102,7 +99,6 @@ router.get('/search', requireAdmin, apiResponse.asyncHandler(async (req, res) =>
 router.delete('/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   const userId = req.params.id;
   
-  logger.info('ADMIN', 'Удаление пользователя', { userId });
 
   // Получаем информацию о пользователе
   const { data: user, error: fetchError } = await supabase
@@ -112,7 +108,6 @@ router.delete('/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) =>
     .single();
 
   if (fetchError || !user) {
-    logger.warn('ADMIN', 'Пользователь не найден', { userId });
     return apiResponse.sendError(res, 'Пользователь не найден', {
       statusCode: 404,
       code: 'NOT_FOUND',
@@ -161,11 +156,6 @@ router.delete('/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) =>
     });
   }
 
-  logger.success('ADMIN', 'Пользователь удален', { 
-    userId, 
-    userName: user.display_name,
-    deletedVideos: deletedVideosCount
-  });
 
   apiResponse.sendSuccess(res, {
     message: 'Пользователь успешно удален',

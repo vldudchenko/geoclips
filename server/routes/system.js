@@ -13,7 +13,6 @@ const logger = require('../utils/logger');
  */
 router.get('/info', requireAdmin, async (req, res) => {
   try {
-    logger.info('ADMIN', 'Запрос системной информации');
 
     const os = require('os');
     
@@ -66,7 +65,6 @@ router.get('/info', requireAdmin, async (req, res) => {
       }
     };
 
-    logger.success('ADMIN', 'Системная информация получена');
     res.json(systemInfo);
   } catch (error) {
     logger.error('ADMIN', 'Ошибка получения системной информации', error);
@@ -81,8 +79,6 @@ router.get('/export/:type', requireAdmin, async (req, res) => {
   try {
     const { type } = req.params;
     const { format = 'csv' } = req.query;
-    
-    logger.info('ADMIN', 'Экспорт данных', { type, format });
 
     let data, filename;
 

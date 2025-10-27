@@ -36,13 +36,7 @@ const upload = multer({
     const hasValidExtension = allowedExtensions.includes(fileExtension);
     const hasValidMimeType = allowedTypes.includes(file.mimetype);
 
-    logger.debug('VIDEO', 'Проверка типа файла', {
-      originalname: file.originalname,
-      mimetype: file.mimetype,
-      extension: fileExtension,
-      valid: hasValidMimeType || hasValidExtension
-    });
-
+   
     if (hasValidMimeType || hasValidExtension) {
       cb(null, true);
     } else {
@@ -61,8 +55,7 @@ router.post('/validate-video', upload.single('video'), validateFile('video'),
     let isValid = true;
     let errorMessage = '';
 
-    logger.loading('VIDEO', 'Валидация видео', { file: req.file.originalname });
-
+    
     // Получаем информацию о видео
     await new Promise((resolve) => {
       ffmpeg.ffprobe(inputPath, (err, metadata) => {
@@ -83,8 +76,7 @@ router.post('/validate-video', upload.single('video'), validateFile('video'),
     // Удаляем временный файл
     await fs.unlink(inputPath);
 
-    logger.info('VIDEO', 'Результат валидации', { isValid, duration });
-
+    
     apiResponse.sendSuccess(res, {
       isValid,
       duration,
@@ -108,8 +100,7 @@ router.delete('/:videoId', requireAuth, apiResponse.asyncHandler(async (req, res
     });
   }
 
-  logger.loading('VIDEO', 'Удаление видео', { videoId, userId: currentUserId });
-
+  
   // Получаем информацию о видео
   const { data: video, error: videoError } = await supabase
     .from('videos')
@@ -117,8 +108,7 @@ router.delete('/:videoId', requireAuth, apiResponse.asyncHandler(async (req, res
     .eq('id', videoId)
     .single();
 
-  if (videoError || !video) {
-    logger.warn('VIDEO', 'Видео не найдено', { videoId });
+  if (videoError || !video) {    
     return apiResponse.sendError(res, 'Видео не найдено', {
       statusCode: 404,
       code: 'NOT_FOUND'
@@ -126,12 +116,7 @@ router.delete('/:videoId', requireAuth, apiResponse.asyncHandler(async (req, res
   }
 
   // Проверяем, что пользователь является владельцем видео
-  if (video.user_id !== currentUserId) {
-    logger.warn('VIDEO', 'Попытка удаления чужого видео', { 
-      videoId, 
-      ownerId: video.user_id, 
-      currentUserId 
-    });
+  if (video.user_id !== currentUserId) {    
     return apiResponse.sendError(res, 'Недостаточно прав для удаления видео', {
       statusCode: 403,
       code: 'FORBIDDEN'
@@ -153,8 +138,7 @@ router.delete('/:videoId', requireAuth, apiResponse.asyncHandler(async (req, res
     if (video.video_url) {
       const videoPath = video.video_url.replace(`${config.baseUrl}/uploads/videos/`, 'uploads/videos/');
       try {
-        await fs.unlink(videoPath);
-        logger.success('VIDEO', 'Файл видео удален', { videoPath });
+        await fs.unlink(videoPath);        
       } catch (unlinkError) {
         logger.warn('VIDEO', 'Не удалось удалить файл видео', { 
           videoPath, 
@@ -165,9 +149,7 @@ router.delete('/:videoId', requireAuth, apiResponse.asyncHandler(async (req, res
   } catch (fileError) {
     logger.warn('VIDEO', 'Ошибка удаления файлов', fileError);
   }
-
-  logger.success('VIDEO', 'Видео успешно удалено', { videoId, tagsUpdated: result.updatedTags });
-  
+   
   apiResponse.sendSuccess(res, {
     message: 'Видео успешно удалено',
     tagsUpdated: result.updatedTags
@@ -180,9 +162,7 @@ router.delete('/:videoId', requireAuth, apiResponse.asyncHandler(async (req, res
 router.get('/:videoId/tags', apiResponse.asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
-  logger.info('VIDEO', 'Получение тегов видео', { videoId });
-
-  const tags = await dbUtils.getVideoTags(videoId);
+    const tags = await dbUtils.getVideoTags(videoId);
 
   apiResponse.sendSuccess(res, { tags });
 }));
@@ -209,8 +189,7 @@ router.post('/:videoId/tags', requireAuth, apiResponse.asyncHandler(async (req, 
     });
   }
 
-  logger.info('VIDEO', 'Привязка тегов к видео', { videoId, tagCount: tags.length, userId: currentUserId });
-
+  
   // Проверяем, что пользователь является владельцем видео
   const { data: video, error: videoError } = await supabase
     .from('videos')
@@ -218,20 +197,14 @@ router.post('/:videoId/tags', requireAuth, apiResponse.asyncHandler(async (req, 
     .eq('id', videoId)
     .single();
 
-  if (videoError || !video) {
-    logger.warn('VIDEO', 'Видео не найдено', { videoId });
+  if (videoError || !video) {    
     return apiResponse.sendError(res, 'Видео не найдено', {
       statusCode: 404,
       code: 'NOT_FOUND'
     });
   }
 
-  if (video.user_id !== currentUserId) {
-    logger.warn('VIDEO', 'Попытка добавления тегов к чужому видео', {
-      videoId,
-      ownerId: video.user_id,
-      currentUserId
-    });
+  if (video.user_id !== currentUserId) {    
     return apiResponse.sendError(res, 'Недостаточно прав для добавления тегов', {
       statusCode: 403,
       code: 'FORBIDDEN'
@@ -241,12 +214,7 @@ router.post('/:videoId/tags', requireAuth, apiResponse.asyncHandler(async (req, 
   // Привязываем теги к видео
   const result = await dbUtils.assignTagsToVideo(videoId, tags, currentUserId);
 
-  logger.success('VIDEO', 'Теги привязаны к видео', {
-    videoId,
-    assigned: result.assigned,
-    skipped: result.skipped
-  });
-
+  
   apiResponse.sendSuccess(res, {
     message: 'Теги успешно привязаны',
     assigned: result.assigned,
@@ -269,8 +237,7 @@ router.delete('/:videoId/tags/:tagId', requireAuth, apiResponse.asyncHandler(asy
     });
   }
 
-  logger.info('VIDEO', 'Удаление тега у видео', { videoId, tagId, userId: currentUserId });
-
+  
   // Проверяем, что пользователь является владельцем видео
   const { data: video, error: videoError } = await supabase
     .from('videos')
@@ -278,20 +245,14 @@ router.delete('/:videoId/tags/:tagId', requireAuth, apiResponse.asyncHandler(asy
     .eq('id', videoId)
     .single();
 
-  if (videoError || !video) {
-    logger.warn('VIDEO', 'Видео не найдено', { videoId });
+  if (videoError || !video) {    
     return apiResponse.sendError(res, 'Видео не найдено', {
       statusCode: 404,
       code: 'NOT_FOUND'
     });
   }
 
-  if (video.user_id !== currentUserId) {
-    logger.warn('VIDEO', 'Попытка удаления тега у чужого видео', {
-      videoId,
-      ownerId: video.user_id,
-      currentUserId
-    });
+  if (video.user_id !== currentUserId) {    
     return apiResponse.sendError(res, 'Недостаточно прав для удаления тега', {
       statusCode: 403,
       code: 'FORBIDDEN'
@@ -327,8 +288,7 @@ router.delete('/:videoId/tags/:tagId', requireAuth, apiResponse.asyncHandler(asy
       .eq('id', tagId);
   }
 
-  logger.success('VIDEO', 'Тег удален у видео', { videoId, tagId });
-
+  
   apiResponse.sendSuccess(res, {
     message: 'Тег успешно удален'
   });
@@ -339,8 +299,7 @@ router.delete('/:videoId/tags/:tagId', requireAuth, apiResponse.asyncHandler(asy
 /**
  * Получение списка видео (для администраторов)
  */
-router.get('/admin', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
-  logger.info('ADMIN', 'Запрос списка видео');
+router.get('/admin', requireAdmin, apiResponse.asyncHandler(async (req, res) => {  
   
   const { data: videos, error } = await supabase
     .from('videos')
@@ -359,8 +318,7 @@ router.get('/admin', requireAdmin, apiResponse.asyncHandler(async (req, res) => 
       operation: 'получение видео'
     });
   }
-
-  logger.success('ADMIN', 'Получены видео');
+  
   apiResponse.sendSuccess(res, { videos: videos || [] });
 }));
 
@@ -373,8 +331,7 @@ router.get('/admin/search', requireAdmin, apiResponse.asyncHandler(async (req, r
     limit = 50, offset = 0, minViews, minLikes
   } = req.query;
   
-  logger.info('ADMIN', 'Поиск видео', { query, userId, sortBy, order, limit, offset });
-
+  
   let queryBuilder = supabase.from('videos').select(`
     id, user_id, description, video_url, latitude, longitude,
     likes_count, views_count, created_at,
@@ -424,8 +381,7 @@ router.get('/admin/search', requireAdmin, apiResponse.asyncHandler(async (req, r
  */
 router.delete('/admin/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   const videoId = req.params.id;
-  logger.info('ADMIN', 'Удаление видео', { videoId });
-
+  
   // Используем общую функцию удаления с очисткой тегов
   const result = await dbUtils.deleteVideosWithTagCleanup(videoId);
 
@@ -435,8 +391,7 @@ router.delete('/admin/:id', requireAdmin, apiResponse.asyncHandler(async (req, r
       code: 'DB_ERROR'
     });
   }
-
-  logger.info('ADMIN', 'Видео удалено', { videoId, tagsUpdated: result.updatedTags });
+  
   apiResponse.sendSuccess(res, { 
     message: 'Видео успешно удалено',
     tagsUpdated: result.updatedTags
@@ -456,21 +411,161 @@ router.delete('/admin/bulk', requireAdmin, apiResponse.asyncHandler(async (req, 
     });
   }
   
-  logger.info('ADMIN', 'Массовое удаление видео', { count: videoIds.length });
-  
+    
   // Используем общую функцию удаления
   const result = await dbUtils.deleteVideosWithTagCleanup(videoIds);
-
-  logger.success('ADMIN', 'Видео удалены', { 
-    count: result.deletedCount, 
-    tagsUpdated: result.updatedTags 
-  });
-
+  
   apiResponse.sendSuccess(res, {
     message: 'Видео успешно удалены',
     count: result.deletedCount,
     tagsUpdated: result.updatedTags
   });
+}));
+
+/**
+ * Получение тегов видео (для администратора)
+ */
+router.get('/admin/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const { data: videoTags, error } = await supabase
+      .from('video_tags')
+      .select(`
+        video_id,
+        tag_id,
+        tags (
+          id,
+          name,
+          usage_count
+        )
+      `)
+      .eq('video_id', id);
+    
+    if (error) {
+      logger.error('VIDEO', 'Ошибка получения тегов видео', error);
+      return apiResponse.sendError(res, 'Ошибка получения тегов видео', {
+        statusCode: 500,
+        code: 'DATABASE_ERROR'
+      });
+    }
+    
+    const tags = videoTags.map(vt => vt.tags).filter(Boolean);
+    
+    apiResponse.sendSuccess(res, { tags });
+  } catch (error) {
+    logger.error('VIDEO', 'Ошибка получения тегов видео', error);
+    apiResponse.sendError(res, 'Ошибка получения тегов видео', {
+      statusCode: 500,
+      code: 'INTERNAL_ERROR'
+    });
+  }
+}));
+
+/**
+ * Обновление тегов видео (для администратора)
+ */
+router.put('/admin/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { tagIds, tagNames } = req.body;
+  
+  logger.info('VIDEO', 'Обновление тегов видео', { 
+    videoId: id, 
+    tagIds, 
+    tagNames, 
+    userId: req.user?.dbUser?.id 
+  });
+  
+  // Поддерживаем как tagIds (массив ID), так и tagNames (массив названий)
+  if (!Array.isArray(tagIds) && !Array.isArray(tagNames)) {
+    logger.warn('VIDEO', 'Неверные параметры запроса', { tagIds, tagNames });
+    return apiResponse.sendError(res, 'Необходимо передать tagIds или tagNames', {
+      statusCode: 400,
+      code: 'VALIDATION_ERROR'
+    });
+  }
+  
+  try {
+    // Проверяем, что видео существует
+    const { data: video, error: videoError } = await supabase
+      .from('videos')
+      .select('id, user_id')
+      .eq('id', id)
+      .single();
+    
+    if (videoError || !video) {
+      return apiResponse.sendError(res, 'Видео не найдено', {
+        statusCode: 404,
+        code: 'NOT_FOUND'
+      });
+    }
+    
+    // Удаляем существующие связи
+    const { error: deleteError } = await supabase
+      .from('video_tags')
+      .delete()
+      .eq('video_id', id);
+    
+    if (deleteError) {
+      logger.error('VIDEO', 'Ошибка удаления старых тегов', deleteError);
+      return apiResponse.sendError(res, 'Ошибка удаления старых тегов', {
+        statusCode: 500,
+        code: 'DATABASE_ERROR'
+      });
+    }
+    
+    let result = { assigned: 0, created: 0, skipped: 0 };
+    
+    // Если переданы названия тегов, используем assignTagsToVideo
+    if (tagNames && tagNames.length > 0) {
+      result = await dbUtils.assignTagsToVideo(id, tagNames, req.user?.dbUser?.id);
+    } 
+    // Если переданы ID тегов, добавляем связи напрямую
+    else if (tagIds && tagIds.length > 0) {
+      logger.info('VIDEO', 'Добавляем теги по ID', { videoId: id, tagIds });
+      
+      const videoTags = tagIds.map(tagId => ({
+        video_id: id,
+        tag_id: tagId
+      }));
+      
+      logger.info('VIDEO', 'Данные для вставки', { videoTags });
+      
+      const { data: insertedData, error: insertError } = await supabase
+        .from('video_tags')
+        .insert(videoTags)
+        .select();
+      
+      if (insertError) {
+        logger.error('VIDEO', 'Ошибка добавления новых тегов', insertError);
+        return apiResponse.sendError(res, 'Ошибка добавления новых тегов', {
+          statusCode: 500,
+          code: 'DATABASE_ERROR'
+        });
+      }
+      
+      logger.info('VIDEO', 'Теги успешно добавлены', { insertedData });
+      result.assigned = tagIds.length;
+    }
+    
+    // Обновляем счетчики тегов
+    await dbUtils.updateTagCounters();
+    
+    logger.info('VIDEO', `Теги обновлены для видео ${id}`, { tagIds, tagNames, result });
+    
+    apiResponse.sendSuccess(res, {
+      message: 'Теги успешно обновлены',
+      tagIds: tagIds || [],
+      tagNames: tagNames || [],
+      result
+    });
+  } catch (error) {
+    logger.error('VIDEO', 'Ошибка обновления тегов видео', error);
+    apiResponse.sendError(res, 'Ошибка обновления тегов видео', {
+      statusCode: 500,
+      code: 'INTERNAL_ERROR'
+    });
+  }
 }));
 
 module.exports = router;

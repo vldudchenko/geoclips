@@ -14,6 +14,9 @@ const { requireAuth } = require('../middleware/unified');
 const { updateUserBasicData } = require('../services/userService');
 const { isValidCoordinates, calculateDistance } = require('../utils/geoUtils');
 
+// Подключение маршрутов комментариев
+const commentsRoutes = require('./comments');
+
 /**
  * Геокодирование адреса
  */
@@ -683,6 +686,9 @@ router.get('/videos/near', async (req, res) => {
     res.status(500).json({ error: 'Ошибка сервера при получении видео' });
   }
 });
+
+// Подключаем маршруты комментариев
+router.use('/comments', commentsRoutes);
 
 module.exports = router;
 

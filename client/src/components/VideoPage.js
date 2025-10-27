@@ -1,19 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { VideoService } from '../services/videoService';
 import VideoPlayer from './VideoPlayer';
+import Comments from './Comments';
 import './VideoPage.css';
 import { API_BASE_URL } from '../utils/constants';
 
 const VideoPage = ({ currentUser }) => {
   const { userDisplayName, videoId } = useParams();
   const navigate = useNavigate();
+  const modalRef = useRef(null);
   const [video, setVideo] = useState(null);
   const [userVideos, setUserVideos] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [author, setAuthor] = useState({ display_name: null, avatar: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [commentsCount, setCommentsCount] = useState(0);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [touchStart, setTouchStart] = useState(0);
+  const [touchEnd, setTouchEnd] = useState(0);
 
   useEffect(() => {
     const loadData = async () => {
@@ -86,6 +92,33 @@ const VideoPage = ({ currentUser }) => {
     navigate(`/video/${userDisplayName}/${prevVideo.id}`, { replace: true });
   };
 
+  const handleOpenComments = () => {
+    setShowCommentsModal(true);
+  };
+
+  const handleCloseComments = () => {
+    setShowCommentsModal(false);
+  };
+
+  const handleCommentsCountChange = (count) => {
+    setCommentsCount(count);
+  };
+
+  // Обработка свайпа для закрытия модального окна
+  const handleTouchStart = (e) => {
+    setTouchStart(e.touches[0].clientY);
+  };
+
+  const handleTouchMove = (e) => {
+    setTouchEnd(e.touches[0].clientY);
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStart - touchEnd < -100) {
+      // Свайп вниз на 100px
+      handleCloseComments();
+    }
+  };
 
   if (loading) {
     return (
@@ -123,8 +156,40 @@ const VideoPage = ({ currentUser }) => {
           hasNext={userVideos.length > 1}
           authorDisplayName={author.display_name}
           authorAvatar={author.avatar}
+          onOpenComments={handleOpenComments}
+          commentsCount={commentsCount}
         />
       </div>
+
+      {/* Модальное окно комментариев (как в TikTok) */}
+      {showCommentsModal && (
+        <div className="comments-modal-overlay" onClick={handleCloseComments}>
+          <div 
+            ref={modalRef}
+            className={`comments-modal ${showCommentsModal ? 'open' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="comments-modal-header">
+              <div className="comments-modal-handle"></div>
+              <h3>{commentsCount} {commentsCount === 1 ? 'комментарий' : commentsCount > 1 && commentsCount < 5 ? 'комментария' : 'комментариев'}</h3>
+              <button className="comments-modal-close" onClick={handleCloseComments}>
+                ✕
+              </button>
+            </div>
+            <div className="comments-modal-content">
+              <Comments 
+                videoId={video.id} 
+                currentUser={currentUser}
+                onCommentsCountChange={handleCommentsCountChange}
+                isModal={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

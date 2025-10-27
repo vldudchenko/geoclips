@@ -5,7 +5,7 @@ import { UserService } from '../services/userService';
 import { ServerApi } from '../services/serverApi';
 import './VideoPlayer.css';
 
-const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = false, hasNext = false, authorDisplayName, authorAvatar }) => {
+const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = false, hasNext = false, authorDisplayName, authorAvatar, onOpenComments, commentsCount = 0 }) => {
   const videoRef = useRef(null);
   const lastNavRef = useRef(0);
   const navigate = useNavigate();
@@ -269,6 +269,13 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
     // navigate(`/search?tag=${encodeURIComponent(tagName)}`);
   };
 
+  const handleOpenComments = (e) => {
+    e.stopPropagation();
+    if (onOpenComments) {
+      onOpenComments();
+    }
+  };
+
   const formatPublishedAt = (dt) => {
     try {
       if (!dt) return '';
@@ -357,13 +364,13 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
             <span className="action-count">{isLiking ? '...' : likesCount}</span>
           </div>
 
-          {/* Кнопка комментариев
-          <div className="tiktok-action-button">
+          {/* Кнопка комментариев */}
+          <div className="tiktok-action-button" onClick={handleOpenComments} title="Комментарии">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
-              <path d="M21.99 4c0-1.1-.89-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18z"/>
+              <path d="M21.99 4c0-1.1-.89-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
             </svg>
-            <span className="action-count">0</span>
-          </div> */}
+            <span className="action-count">{commentsCount}</span>
+          </div>
 
           {/* Кнопка поделиться
           <div className="tiktok-action-button">

@@ -10,12 +10,13 @@ const config = {
   port: process.env.PORT,
   baseUrl: process.env.BASE_URL,
   clientUrl: process.env.CLIENT_URL,
-  nodeEnv: process.env.NODE_ENV || 'development',
+  nodeEnv: process.env.NODE_ENV,
 
   // Supabase
   supabase: {
     url: process.env.SUPABASE_URL,
-    anonKey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY
+    anonKey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY,
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY
   },
 
   // Yandex OAuth

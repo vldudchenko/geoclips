@@ -13,7 +13,6 @@ const logger = require('../utils/logger');
  */
 router.get('/stats', requireAdmin, async (req, res) => {
   try {
-    logger.info('ADMIN', 'Запрос статистики');
     
     // Оптимизированный запрос - получаем все данные одним запросом
     const [usersResult, videosResult, tagsResult] = await Promise.all([
@@ -43,7 +42,6 @@ router.get('/stats', requireAdmin, async (req, res) => {
     logger.error('ADMIN', 'Ошибка получения статистики', error);
     res.status(500).json({ error: 'Ошибка получения статистики' });
   }
-  logger.success('ADMIN', 'Статистика получена');
 });
 
 /**
@@ -51,7 +49,6 @@ router.get('/stats', requireAdmin, async (req, res) => {
  */
 router.get('/analytics', requireAdmin, async (req, res) => {
   try {
-    logger.info('ADMIN', 'Запрос расширенной аналитики');
 
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -151,7 +148,6 @@ router.get('/activity-logs', requireAdmin, async (req, res) => {
   try {
     const { limit = 100 } = req.query;
     
-    logger.info('ADMIN', 'Запрос логов активности');
 
     // Получаем последние действия пользователей
     const [recentVideos, recentUsers] = await Promise.all([

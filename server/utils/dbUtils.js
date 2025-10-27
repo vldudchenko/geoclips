@@ -145,20 +145,51 @@ const deleteVideosWithTagCleanup = async (videoIds) => {
 
 /**
  * Обновить счетчики использования тегов
- * @param {string[]} tagIds - массив ID тегов
+ * @param {string[]} tagIds - массив ID тегов (опционально, если не указан - обновляет все теги)
  * @param {boolean} recalculate - пересчитать счетчики из БД
  * @returns {Object} результат операции
  */
-const updateTagCounters = async (tagIds, recalculate = false) => {
-  if (!Array.isArray(tagIds) || tagIds.length === 0) {
-    return { success: true, updatedCount: 0, results: [] };
-  }
-
+const updateTagCounters = async (tagIds = null, recalculate = true) => {
   try {
+    let tagsToUpdate = [];
+    
+    if (tagIds && Array.isArray(tagIds) && tagIds.length > 0) {
+      // Обновляем только указанные теги
+      const { data: tags, error: selectError } = await supabase
+        .from('tags')
+        .select('id')
+        .in('id', tagIds);
+      
+      if (selectError) {
+        logger.error('DB', 'Ошибка получения тегов для обновления', selectError);
+        return { success: false, updatedCount: 0, results: [] };
+      }
+      
+      tagsToUpdate = tags || [];
+    } else {
+      // Обновляем все теги
+      const { data: allTags, error: selectError } = await supabase
+        .from('tags')
+        .select('id');
+      
+      if (selectError) {
+        logger.error('DB', 'Ошибка получения всех тегов', selectError);
+        return { success: false, updatedCount: 0, results: [] };
+      }
+      
+      tagsToUpdate = allTags || [];
+    }
+
+    if (tagsToUpdate.length === 0) {
+      return { success: true, updatedCount: 0, results: [] };
+    }
+
     let updatedCount = 0;
     const results = [];
 
-    for (const tagId of tagIds) {
+    for (const tag of tagsToUpdate) {
+      const tagId = tag.id;
+      
       if (!recalculate) {
         continue; // Пропускаем, если не нужно пересчитывать
       }
@@ -190,7 +221,7 @@ const updateTagCounters = async (tagIds, recalculate = false) => {
       }
     }
 
-    logger.info('DB', 'Счетчики тегов обновлены', { total: tagIds.length, updated: updatedCount });
+    logger.info('DB', 'Счетчики тегов обновлены', { total: tagsToUpdate.length, updated: updatedCount });
     return { success: true, updatedCount, results };
   } catch (error) {
     logger.error('DB', 'Ошибка в updateTagCounters', error);
@@ -438,8 +469,47 @@ const assignTagsToVideo = async (videoId, tagNames, userId = null) => {
 
     for (const tagName of tagNames) {
       try {
-        // Получаем или создаем тег
-        const tag = await getOrCreateTag(tagName, userId);
+        // Проверяем, существует ли тег с таким именем
+        const normalizedName = tagName.trim().toLowerCase();
+        const { data: existingTag, error: selectError } = await supabase
+          .from('tags')
+          .select('id, name, usage_count, user_id')
+          .ilike('name', normalizedName)
+          .maybeSingle();
+
+        let tag;
+        let isNewTag = false;
+
+        if (selectError && selectError.code !== 'PGRST116') {
+          logger.warn('DB', 'Ошибка поиска тега', { tagName: normalizedName, error: selectError });
+          errors.push(`${tagName}: ${selectError.message}`);
+          continue;
+        }
+
+        if (existingTag) {
+          tag = existingTag;
+          logger.info('DB', 'Тег найден', { id: tag.id, name: tag.name });
+        } else {
+          // Создаем новый тег
+          logger.info('DB', 'Создаем новый тег', { name: normalizedName, user_id: userId });
+          
+          const { data: newTag, error: insertError } = await supabase
+            .from('tags')
+            .insert([{ name: normalizedName, usage_count: 0, user_id: userId }])
+            .select('id, name, usage_count, user_id')
+            .single();
+
+          if (insertError) {
+            logger.error('DB', 'Ошибка создания тега', { tagName: normalizedName, error: insertError });
+            errors.push(`${tagName}: ${insertError.message}`);
+            continue;
+          }
+
+          tag = newTag;
+          isNewTag = true;
+          created++;
+          logger.success('DB', 'Тег успешно создан', { id: tag.id, name: tag.name });
+        }
 
         // Проверяем, не привязан ли уже этот тег к видео
         const { data: existingLink, error: checkError } = await supabase
@@ -462,24 +532,28 @@ const assignTagsToVideo = async (videoId, tagNames, userId = null) => {
         }
 
         // Привязываем тег к видео
-        const { error: insertError } = await supabase
+        const { error: insertLinkError } = await supabase
           .from('video_tags')
           .insert([{ video_id: videoId, tag_id: tag.id }]);
 
-        if (insertError) {
-          logger.error('DB', 'Ошибка привязки тега к видео', { videoId, tagId: tag.id, error: insertError });
-          errors.push(`${tagName}: ${insertError.message}`);
+        if (insertLinkError) {
+          logger.error('DB', 'Ошибка привязки тега к видео', { videoId, tagId: tag.id, error: insertLinkError });
+          errors.push(`${tagName}: ${insertLinkError.message}`);
           continue;
         }
 
         // Увеличиваем счетчик использования тега
-        await supabase
+        const { error: updateError } = await supabase
           .from('tags')
           .update({ usage_count: (tag.usage_count || 0) + 1 })
           .eq('id', tag.id);
 
+        if (updateError) {
+          logger.warn('DB', 'Ошибка обновления счетчика тега', { tagId: tag.id, error: updateError });
+        }
+
         assigned++;
-        logger.success('DB', 'Тег привязан к видео', { videoId, tagId: tag.id, tagName });
+        logger.success('DB', 'Тег привязан к видео', { videoId, tagId: tag.id, tagName, isNewTag });
 
       } catch (error) {
         logger.error('DB', 'Ошибка при обработке тега', { tagName, error: error.message });
@@ -537,6 +611,180 @@ const getVideoTags = async (videoId) => {
   }
 };
 
+/**
+ * Получить комментарии для видео
+ * @param {string} videoId - ID видео
+ * @param {Object} options - опции запроса (limit, offset, sortBy, order)
+ * @returns {Object} комментарии и общее количество
+ */
+const getVideoComments = async (videoId, options = {}) => {
+  const { limit = 50, offset = 0, sortBy = 'created_at', order = 'desc' } = options;
+
+  if (!videoId) {
+    return { comments: [], total: 0 };
+  }
+
+  try {
+    const { data: comments, error, count } = await supabase
+      .from('comments')
+      .select(`
+        id,
+        text,
+        created_at,
+        users (
+          id,
+          display_name,
+          avatar_url
+        )
+      `, { count: 'exact' })
+      .eq('video_id', videoId)
+      .order(sortBy, { ascending: order === 'asc' })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      logger.error('DB', 'Ошибка получения комментариев видео', { videoId, error });
+      throw error;
+    }
+
+    return {
+      comments: comments || [],
+      total: count || 0
+    };
+  } catch (error) {
+    logger.error('DB', 'Ошибка в getVideoComments', { videoId, error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Получить статистику по комментариям
+ * @returns {Object} статистика комментариев
+ */
+const getCommentsStats = async () => {
+  try {
+    // Общее количество комментариев
+    const { count: totalComments, error: totalError } = await supabase
+      .from('comments')
+      .select('id', { count: 'exact', head: true });
+
+    if (totalError) {
+      logger.error('DB', 'Ошибка получения общего количества комментариев', totalError);
+    }
+
+    // Комментарии за последние 24 часа
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: recentComments, error: recentError } = await supabase
+      .from('comments')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', yesterday);
+
+    if (recentError) {
+      logger.error('DB', 'Ошибка получения количества недавних комментариев', recentError);
+    }
+
+    // Топ видео по комментариям
+    const { data: topVideos, error: topError } = await supabase
+      .from('videos')
+      .select('id, description, comments_count')
+      .order('comments_count', { ascending: false })
+      .limit(10);
+
+    if (topError) {
+      logger.error('DB', 'Ошибка получения топ видео по комментариям', topError);
+    }
+
+    // Топ комментаторы
+    const { data: topCommenters, error: commentersError } = await supabase
+      .rpc('get_top_commenters', { limit_count: 10 })
+      .select('*');
+
+    if (commentersError) {
+      logger.warn('DB', 'Ошибка получения топ комментаторов (возможно, функция не создана)', commentersError);
+    }
+
+    return {
+      totalComments: totalComments || 0,
+      recentComments: recentComments || 0,
+      topVideos: topVideos || [],
+      topCommenters: topCommenters || []
+    };
+  } catch (error) {
+    logger.error('DB', 'Ошибка в getCommentsStats', { error: error.message });
+    return {
+      totalComments: 0,
+      recentComments: 0,
+      topVideos: [],
+      topCommenters: []
+    };
+  }
+};
+
+/**
+ * Удалить комментарии видео
+ * @param {string} videoId - ID видео
+ * @returns {Object} результат операции
+ */
+const deleteVideoComments = async (videoId) => {
+  if (!videoId) {
+    return { success: false, deleted: 0 };
+  }
+
+  try {
+    const { count, error } = await supabase
+      .from('comments')
+      .delete({ count: 'exact' })
+      .eq('video_id', videoId);
+
+    if (error) {
+      logger.error('DB', 'Ошибка удаления комментариев видео', { videoId, error });
+      throw error;
+    }
+
+    logger.success('DB', 'Комментарии видео удалены', { videoId, deleted: count });
+
+    return {
+      success: true,
+      deleted: count || 0
+    };
+  } catch (error) {
+    logger.error('DB', 'Ошибка в deleteVideoComments', { videoId, error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Удалить комментарии пользователя
+ * @param {string} userId - ID пользователя
+ * @returns {Object} результат операции
+ */
+const deleteUserComments = async (userId) => {
+  if (!userId) {
+    return { success: false, deleted: 0 };
+  }
+
+  try {
+    const { count, error } = await supabase
+      .from('comments')
+      .delete({ count: 'exact' })
+      .eq('user_id', userId);
+
+    if (error) {
+      logger.error('DB', 'Ошибка удаления комментариев пользователя', { userId, error });
+      throw error;
+    }
+
+    logger.success('DB', 'Комментарии пользователя удалены', { userId, deleted: count });
+
+    return {
+      success: true,
+      deleted: count || 0
+    };
+  } catch (error) {
+    logger.error('DB', 'Ошибка в deleteUserComments', { userId, error: error.message });
+    throw error;
+  }
+};
+
 module.exports = {
   getVideoCountsByUsers,
   getTagCountsByVideos,
@@ -546,5 +794,9 @@ module.exports = {
   handleDbError,
   getOrCreateTag,
   assignTagsToVideo,
-  getVideoTags
+  getVideoTags,
+  getVideoComments,
+  getCommentsStats,
+  deleteVideoComments,
+  deleteUserComments
 };
