@@ -5,102 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GeoClips Admin Panel</title>
     <link rel="stylesheet" href="/admin/admin.css">
+    
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎥 GeoClips Admin Panel</h1>
-            <button class="logout-btn" onclick="logout()">🚪 Выйти</button>
-        </div>
-        
-        <!-- Навигационная панель -->
-        <div class="nav-tabs">
-            <button class="nav-tab active" onclick="switchTab('dashboard')">📊 Дашборд</button>
-            <button class="nav-tab" onclick="switchTab('analytics')">📈 Аналитика</button>
-            <button class="nav-tab" onclick="switchTab('users')">👥 Пользователи</button>
+            <button class="nav-tab active" onclick="switchTab('users')">👥 Пользователи</button>
             <button class="nav-tab" onclick="switchTab('videos')">🎬 Видео</button>
             <button class="nav-tab" onclick="switchTab('tags')">🏷️ Теги</button>
             <button class="nav-tab" onclick="switchTab('comments')">💬 Комментарии</button>
-            <button class="nav-tab" onclick="switchTab('system')">⚙️ Система</button>
-            <button class="nav-tab" onclick="switchTab('logs')">📝 Логи</button>
+            <button class="logout-btn" onclick="logout()">🚪 Выйти</button>
         </div>
-
-        <!-- Вкладка: Дашборд -->
-        <div id="tab-dashboard" class="tab-content active">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number" id="users-count">-</div>
-                    <div class="stat-label">Пользователей</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="videos-count">-</div>
-                    <div class="stat-label">Видео</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="total-views">-</div>
-                    <div class="stat-label">Просмотров</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="total-likes">-</div>
-                    <div class="stat-label">Лайков</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="tags-count">-</div>
-                    <div class="stat-label">Тегов</div>
-                </div>
-            </div>
-
-            
-
-            <div class="section">
-                <h2>📊 Краткая статистика за последние 7 дней</h2>
-                <div id="dashboard-chart">
-                    <div class="loading">Загрузка графиков...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Вкладка: Аналитика -->
-        <div id="tab-analytics" class="tab-content">
-            <div class="section">
-                <h2>📈 Расширенная аналитика</h2>
-                <button class="btn" onclick="loadAnalytics()">Обновить аналитику</button>
-                
-                <div class="analytics-period">
-                    <div class="period-card">
-                        <h3>Последние 7 дней</h3>
-                        <p>Новых пользователей: <span id="analytics-users-7d">-</span></p>
-                        <p>Новых видео: <span id="analytics-videos-7d">-</span></p>
-                    </div>
-                    <div class="period-card">
-                        <h3>Последние 30 дней</h3>
-                        <p>Новых пользователей: <span id="analytics-users-30d">-</span></p>
-                        <p>Новых видео: <span id="analytics-videos-30d">-</span></p>
-                    </div>
-                </div>
-
-                <div id="daily-chart">
-                    <canvas id="dailyStatsChart"></canvas>
-                </div>
-
-                <div class="analytics-grid">
-                    <div class="analytics-section">
-                        <h3>🏆 Топ пользователей по видео</h3>
-                        <div id="top-users-list"></div>
-                    </div>
-                    <div class="analytics-section">
-                        <h3>🌟 Топ видео по просмотрам</h3>
-                        <div id="top-videos-list"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        
 
         <!-- Вкладка: Пользователи -->
-        <div id="tab-users" class="tab-content">
-            <div class="section">
-                <h2>👥 Управление пользователями</h2>
-                
+        <div id="tab-users" class="tab-content active">
+            <div class="section">                
                 <div class="search-filter-panel">
                     <input type="text" id="users-search" placeholder="Поиск пользователей..." class="search-input">
                     <select id="users-sort" class="filter-select">
@@ -131,9 +51,7 @@
 
         <!-- Вкладка: Видео -->
         <div id="tab-videos" class="tab-content">
-            <div class="section">
-                <h2>🎬 Управление видео</h2>
-                
+            <div class="section">                
                 <div class="search-filter-panel">
                     <input type="text" id="videos-search" placeholder="Поиск видео..." class="search-input">
                     <input type="number" id="videos-min-views" placeholder="Мин. просмотры" class="filter-input">
@@ -169,8 +87,7 @@
 
         <!-- Вкладка: Теги -->
         <div id="tab-tags" class="tab-content">
-            <div class="section">
-                <h2>🏷️ Управление тегами</h2>
+            <div class="section">                
                 <button class="btn" onclick="loadTags()">Обновить список</button>
                 <div class="tag-form">
                     <h3>➕ Добавить новый тег</h3>
@@ -204,7 +121,6 @@
         <!-- Вкладка: Комментарии -->
         <div id="tab-comments" class="tab-content">
             <div class="section">
-                <h2>💬 Управление комментариями</h2>
                 <button class="btn" onclick="loadComments()">🔄 Обновить список</button>
                 
                 <div class="filters">
@@ -242,44 +158,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Вкладка: Система -->
-        <div id="tab-system" class="tab-content">
-            <div class="section">
-                <h2>⚙️ Системная информация</h2>
-                <button class="btn" onclick="loadSystemInfo()">🔄 Обновить</button>
-                
-                <div id="system-info-container">
-                    <div class="loading">Загрузка системной информации...</div>
-                </div>
-            </div>
-
-            <div class="section">
-                <h2>🧹 Обслуживание</h2>
-                <div class="maintenance-actions">
-                    <button class="btn btn-warning" onclick="cleanupData('unused_tags')">
-                        🏷️ Удалить неиспользуемые теги
-                    </button>
-                    <button class="btn btn-warning" onclick="cleanupData('old_videos')">
-                        🎬 Удалить старые видео без просмотров
-                    </button>
-                    <button class="btn btn-warning" onclick="fixTagCounters()">
-                        🔧 Исправить счетчики тегов
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Вкладка: Логи -->
-        <div id="tab-logs" class="tab-content">
-            <div class="section">
-                <h2>📝 Логи активности</h2>
-                <button class="btn" onclick="loadActivityLogs()">🔄 Обновить</button>
-                
-                <div id="activity-logs-container">
-                    <div class="loading">Загрузка логов...</div>
-                </div>
-            </div>
         </div>
     </div>
 

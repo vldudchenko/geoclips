@@ -1108,6 +1108,813 @@ const getTagsUsedByUsers = async (userIds) => {
   }
 };
 
+// ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С КОММЕНТАРИЯМИ ====================
+
+/**
+ * Получить комментарии для видео
+ * @param {string} videoId - ID видео
+ * @param {Object} options - опции запроса
+ * @returns {Promise<Object>} результат с комментариями и ошибкой
+ */
+const getCommentsForVideo = async (videoId, options = {}) => {
+  try {
+    const { limit = 50, offset = 0, sortBy = 'created_at', order = 'desc' } = options;
+
+    const { data: comments, error } = await supabase
+      .from('comments')
+      .select(`
+        id,
+        text,
+        created_at,
+        updated_at,
+        users (
+          id,
+          display_name,
+          avatar_url
+        )
+      `)
+      .eq('video_id', videoId)
+      .order(sortBy, { ascending: order === 'asc' })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      return { comments: [], total: 0, error };
+    }
+
+    // Получаем актуальный счетчик комментариев
+    const { data: videoData, error: videoCountError } = await supabase
+      .from('videos')
+      .select('comments_count')
+      .eq('id', videoId)
+      .single();
+
+    if (videoCountError) {
+      logger.warn('DB', 'Ошибка получения счетчика комментариев', videoCountError);
+    }
+
+    return { 
+      comments: comments || [], 
+      total: videoData?.comments_count || 0,
+      error: null 
+    };
+  } catch (error) {
+    logger.error('DB', 'Ошибка получения комментариев для видео', error);
+    return { comments: [], total: 0, error };
+  }
+};
+
+/**
+ * Создать комментарий к видео
+ * @param {string} videoId - ID видео
+ * @param {string} userId - ID пользователя
+ * @param {string} text - текст комментария
+ * @returns {Promise<Object>} результат операции
+ */
+const createCommentForVideo = async (videoId, userId, text) => {
+  try {
+    // Проверяем, что видео существует
+    const { data: video, error: videoError } = await supabase
+      .from('videos')
+      .select('id')
+      .eq('id', videoId)
+      .single();
+
+    if (videoError || !video) {
+      return { success: false, error: 'Видео не найдено' };
+    }
+
+    // Создаем комментарий
+    const { data: insertedComment, error: insertError } = await supabase
+      .from('comments')
+      .insert([{
+        video_id: videoId,
+        user_id: userId,
+        text: text.trim()
+      }])
+      .select('id')
+      .single();
+
+    if (insertError) {
+      logger.error('DB', 'Ошибка создания комментария', insertError);
+      return { success: false, error: insertError };
+    }
+
+    // Получаем полные данные комментария с пользователем
+    const { data: comment, error: selectError } = await supabase
+      .from('comments')
+      .select(`
+        id,
+        text,
+        created_at,
+        updated_at,
+        users (
+          id,
+          display_name,
+          avatar_url
+        )
+      `)
+      .eq('id', insertedComment.id)
+      .single();
+
+    if (selectError) {
+      logger.error('DB', 'Ошибка получения данных комментария', selectError);
+      return { success: false, error: selectError };
+    }
+
+    return { success: true, comment };
+  } catch (error) {
+    logger.error('DB', 'Ошибка создания комментария', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Получить все комментарии для админки
+ * @param {Object} filters - фильтры
+ * @returns {Promise<Object>} результат с комментариями и ошибкой
+ */
+const getAllCommentsForAdmin = async (filters = {}) => {
+  try {
+    const { limit = 100, offset = 0, sortBy = 'created_at', order = 'desc', videoId } = filters;
+
+    let query = supabase
+      .from('comments')
+      .select(`
+        id,
+        text,
+        created_at,
+        updated_at,
+        users (
+          id,
+          display_name,
+          avatar_url
+        ),
+        videos (
+          id,
+          description,
+          user_id
+        )
+      `, { count: 'exact' })
+      .order(sortBy, { ascending: order === 'asc' });
+
+    // Фильтрация по видео (если указано)
+    if (videoId) {
+      query = query.eq('video_id', videoId);
+    }
+
+    const { data: comments, error, count } = await query
+      .range(offset, offset + limit - 1);
+
+    return { comments: comments || [], total: count || 0, error };
+  } catch (error) {
+    logger.error('DB', 'Ошибка получения всех комментариев для админки', error);
+    return { comments: [], total: 0, error };
+  }
+};
+
+/**
+ * Получить комментарии пользователя (написанные)
+ * @param {string} userId - ID пользователя
+ * @returns {Promise<Object>} результат с комментариями и ошибкой
+ */
+const getCommentsWrittenByUser = async (userId) => {
+  try {
+    const { data: comments, error } = await supabase
+      .from('comments')
+      .select(`
+        id,
+        text,
+        created_at,
+        video_id,
+        videos!inner(
+          id,
+          description,
+          user_id
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return { comments: [], error };
+    }
+
+    const processedComments = comments?.map(comment => ({
+      id: comment.id,
+      text: comment.text,
+      created_at: comment.created_at,
+      video_id: comment.video_id,
+      video_description: comment.videos?.description || 'Без описания'
+    })) || [];
+
+    return { comments: processedComments, error: null };
+  } catch (error) {
+    logger.error('DB', 'Ошибка получения написанных комментариев пользователя', error);
+    return { comments: [], error };
+  }
+};
+
+/**
+ * Получить комментарии полученные пользователем (к его видео)
+ * @param {string} userId - ID пользователя
+ * @returns {Promise<Object>} результат с комментариями и ошибкой
+ */
+const getCommentsReceivedByUser = async (userId) => {
+  try {
+    // Сначала получаем видео пользователя
+    const { data: userVideos, error: videosError } = await supabase
+      .from('videos')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (videosError) {
+      return { comments: [], error: videosError };
+    }
+
+    if (!userVideos || userVideos.length === 0) {
+      return { comments: [], error: null };
+    }
+
+    const videoIds = userVideos.map(video => video.id);
+
+    // Получаем комментарии к этим видео
+    const { data: comments, error } = await supabase
+      .from('comments')
+      .select(`
+        id,
+        text,
+        created_at,
+        video_id,
+        videos!inner(
+          id,
+          description
+        )
+      `)
+      .in('video_id', videoIds)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return { comments: [], error };
+    }
+
+    const processedComments = comments?.map(comment => ({
+      id: comment.id,
+      text: comment.text,
+      created_at: comment.created_at,
+      video_id: comment.video_id,
+      video_description: comment.videos?.description || 'Без описания'
+    })) || [];
+
+    return { comments: processedComments, error: null };
+  } catch (error) {
+    logger.error('DB', 'Ошибка получения полученных комментариев пользователя', error);
+    return { comments: [], error };
+  }
+};
+
+// ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С ЛАЙКАМИ ====================
+
+/**
+ * Получить лайки поставленные пользователем
+ * @param {string} userId - ID пользователя
+ * @returns {Promise<Object>} результат с лайками и ошибкой
+ */
+const getLikesGivenByUser = async (userId) => {
+  try {
+    const { data: likes, error } = await supabase
+      .from('likes')
+      .select(`
+        id,
+        created_at,
+        video_id,
+        videos!inner(
+          id,
+          description,
+          user_id
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return { likes: [], error };
+    }
+
+    const processedLikes = likes?.map(like => ({
+      id: like.id,
+      created_at: like.created_at,
+      video_id: like.video_id,
+      video_description: like.videos?.description || 'Без описания'
+    })) || [];
+
+    return { likes: processedLikes, error: null };
+  } catch (error) {
+    logger.error('DB', 'Ошибка получения поставленных лайков пользователя', error);
+    return { likes: [], error };
+  }
+};
+
+/**
+ * Получить лайки полученные пользователем (лайки его видео)
+ * @param {string} userId - ID пользователя
+ * @returns {Promise<Object>} результат с лайками и ошибкой
+ */
+const getLikesReceivedByUser = async (userId) => {
+  try {
+    // Сначала получаем видео пользователя
+    const { data: userVideos, error: videosError } = await supabase
+      .from('videos')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (videosError) {
+      return { likes: [], error: videosError };
+    }
+
+    if (!userVideos || userVideos.length === 0) {
+      return { likes: [], error: null };
+    }
+
+    const videoIds = userVideos.map(video => video.id);
+
+    // Получаем лайки к этим видео с информацией о пользователях
+    const { data: likes, error } = await supabase
+      .from('likes')
+      .select(`
+        id,
+        created_at,
+        video_id,
+        user_id,
+        videos!inner(
+          id,
+          description
+        ),
+        users(
+          id,
+          display_name,
+          avatar_url
+        )
+      `)
+      .in('video_id', videoIds)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return { likes: [], error };
+    }
+
+    const processedLikes = likes?.map(like => ({
+      id: like.id,
+      created_at: like.created_at,
+      video_id: like.video_id,
+      video_description: like.videos?.description || 'Без описания',
+      user_id: like.user_id,
+      user_name: like.users?.display_name || 'Неизвестный пользователь',
+      user_avatar: like.users?.avatar_url || null
+    })) || [];
+
+    return { likes: processedLikes, error: null };
+  } catch (error) {
+    logger.error('DB', 'Ошибка получения полученных лайков пользователя', error);
+    return { likes: [], error };
+  }
+};
+
+// ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С ВИДЕО ====================
+
+/**
+ * Получить все видео для админки
+ * @returns {Promise<Object>} результат с видео и ошибкой
+ */
+const getAllVideosForAdmin = async () => {
+  try {
+    const { data: videos, error } = await supabase
+      .from('videos')
+      .select(`
+        id, user_id, description, video_url,
+        latitude, longitude, likes_count, views_count, comments_count,
+        created_at,
+        users (id, yandex_id, display_name, avatar_url)
+      `)
+      .order('created_at', { ascending: false });
+
+    return { videos: videos || [], error };
+  } catch (error) {
+    logger.error('DB', 'Ошибка получения всех видео для админки', error);
+    return { videos: [], error };
+  }
+};
+
+/**
+ * Поиск видео с фильтрацией для админки
+ * @param {Object} filters - фильтры поиска
+ * @returns {Promise<Object>} результат с видео, количеством и ошибкой
+ */
+const searchVideosForAdmin = async (filters = {}) => {
+  try {
+    const {
+      query,
+      userId,
+      sortBy = 'created_at',
+      order = 'desc',
+      limit = 50,
+      offset = 0,
+      minViews,
+      minLikes
+    } = filters;
+
+    let queryBuilder = supabase.from('videos').select(`
+      id, user_id, description, video_url, latitude, longitude,
+      likes_count, views_count, comments_count, created_at,
+      users (id, yandex_id, display_name, avatar_url)
+    `, { count: 'exact' });
+
+    // Применяем фильтры
+    if (query) {
+      queryBuilder = queryBuilder.ilike('description', `%${query}%`);
+    }
+    if (userId) {
+      queryBuilder = queryBuilder.eq('user_id', userId);
+    }
+    if (minViews) {
+      queryBuilder = queryBuilder.gte('views_count', parseInt(minViews));
+    }
+    if (minLikes) {
+      queryBuilder = queryBuilder.gte('likes_count', parseInt(minLikes));
+    }
+
+    // Сортировка и пагинация
+    const ascending = order === 'asc';
+    queryBuilder = queryBuilder
+      .order(sortBy, { ascending })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+    const { data: videos, error, count } = await queryBuilder;
+
+    return { videos: videos || [], count: count || 0, error };
+  } catch (error) {
+    logger.error('DB', 'Ошибка поиска видео для админки', error);
+    return { videos: [], count: 0, error };
+  }
+};
+
+/**
+ * Получить лайки видео для админки
+ * @param {string} videoId - ID видео
+ * @returns {Promise<Object>} результат с лайками и ошибкой
+ */
+const getVideoLikesForAdmin = async (videoId) => {
+  try {
+    const { data: likes, error } = await supabase
+      .from('likes')
+      .select(`
+        id,
+        created_at,
+        users (
+          id,
+          display_name,
+          avatar_url
+        )
+      `)
+      .eq('video_id', videoId)
+      .order('created_at', { ascending: false });
+
+    return { likes: likes || [], error };
+  } catch (error) {
+    logger.error('DB', 'Ошибка получения лайков видео для админки', error);
+    return { likes: [], error };
+  }
+};
+
+/**
+ * Исправить счетчики просмотров для всех видео
+ * Пересчитывает views_count на основе реальных записей в video_views
+ * @returns {Promise<Object>} результат операции
+ */
+const fixVideoViewsCounters = async () => {
+  try {
+    logger.info('DB', 'Начинаем исправление счетчиков просмотров');
+    
+    // Получаем все видео
+    const { data: videos, error: videosError } = await supabase
+      .from('videos')
+      .select('id, views_count');
+    
+    if (videosError) {
+      logger.error('DB', 'Ошибка получения списка видео', videosError);
+      return { success: false, error: videosError };
+    }
+    
+    let fixedCount = 0;
+    const results = [];
+    
+    for (const video of videos) {
+      // Получаем реальное количество просмотров из таблицы video_views
+      const { count: realViewsCount, error: countError } = await supabase
+        .from('video_views')
+        .select('*', { count: 'exact', head: true })
+        .eq('video_id', video.id);
+      
+      if (countError) {
+        logger.error('DB', 'Ошибка подсчета просмотров для видео', { videoId: video.id, error: countError });
+        continue;
+      }
+      
+      const realCount = realViewsCount || 0;
+      const currentCount = video.views_count || 0;
+      
+      // Если счетчики не совпадают, обновляем
+      if (realCount !== currentCount) {
+        const { error: updateError } = await supabase
+          .from('videos')
+          .update({ views_count: realCount })
+          .eq('id', video.id);
+        
+        if (updateError) {
+          logger.error('DB', 'Ошибка обновления счетчика просмотров', { videoId: video.id, error: updateError });
+          continue;
+        }
+        
+        fixedCount++;
+        results.push({
+          videoId: video.id,
+          oldCount: currentCount,
+          newCount: realCount
+        });
+        
+        logger.info('DB', 'Счетчик просмотров исправлен', { 
+          videoId: video.id, 
+          oldCount: currentCount, 
+          newCount: realCount 
+        });
+      }
+    }
+    
+    logger.info('DB', 'Исправление счетчиков просмотров завершено', { 
+      totalVideos: videos.length, 
+      fixedCount, 
+      results: results.slice(0, 5) // Показываем только первые 5 результатов
+    });
+    
+    return { success: true, fixedCount, totalVideos: videos.length, results };
+  } catch (error) {
+    logger.error('DB', 'Ошибка в fixVideoViewsCounters', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Обновить счетчик просмотров видео
+ * @param {string} videoId - ID видео
+ * @returns {Promise<Object>} результат операции
+ */
+const updateVideoViewsCount = async (videoId) => {
+  try {
+    // Получаем текущий счетчик
+    const { data: currentVideo, error: getCurrentError } = await supabase
+      .from('videos')
+      .select('views_count')
+      .eq('id', videoId)
+      .single();
+
+    if (getCurrentError) {
+      logger.error('DB', 'Ошибка получения текущего счетчика просмотров', getCurrentError);
+      return { success: false, error: getCurrentError };
+    }
+
+    // Увеличиваем счетчик на 1
+    const { error: updateError } = await supabase
+      .from('videos')
+      .update({ views_count: (currentVideo.views_count || 0) + 1 })
+      .eq('id', videoId);
+
+    if (updateError) {
+      logger.error('DB', 'Ошибка обновления счетчика просмотров', updateError);
+      return { success: false, error: updateError };
+    }
+
+    logger.info('DB', 'Счетчик просмотров обновлен', { videoId, newCount: (currentVideo.views_count || 0) + 1 });
+    return { success: true, newCount: (currentVideo.views_count || 0) + 1 };
+  } catch (error) {
+    logger.error('DB', 'Ошибка в updateVideoViewsCount', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Получить просмотры видео для админки
+ * @param {string} videoId - ID видео
+ * @returns {Promise<Object>} результат с информацией о просмотрах и ошибкой
+ */
+const getVideoViewsForAdmin = async (videoId) => {
+  try {
+    // Получаем список пользователей, которые просмотрели видео
+    const { data: views, error } = await supabase
+      .from('video_views')
+      .select(`
+        id,
+        created_at,
+        users (
+          id,
+          display_name,
+          avatar_url,
+          yandex_id
+        )
+      `)
+      .eq('video_id', videoId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return { views: [], error };
+    }
+
+    // Получаем общее количество просмотров
+    const { data: video, error: videoError } = await supabase
+      .from('videos')
+      .select('views_count, description')
+      .eq('id', videoId)
+      .single();
+
+    if (videoError) {
+      return { views: [], error: videoError };
+    }
+
+    // Формируем результат
+    const result = {
+      total_views: video.views_count || 0,
+      video_description: video.description || 'Без описания',
+      viewers: views?.map(view => ({
+        id: view.id,
+        viewed_at: view.created_at,
+        user: view.users ? {
+          id: view.users.id,
+          display_name: view.users.display_name || 'Неизвестно',
+          avatar_url: view.users.avatar_url,
+          yandex_id: view.users.yandex_id
+        } : null
+      })).filter(view => view.user) || []
+    };
+
+    return { views: [result], error: null };
+  } catch (error) {
+    logger.error('DB', 'Ошибка получения просмотров видео для админки', error);
+    return { views: [], error };
+  }
+};
+
+/**
+ * Получить комментарии видео для админки
+ * @param {string} videoId - ID видео
+ * @returns {Promise<Object>} результат с комментариями и ошибкой
+ */
+const getVideoCommentsForAdmin = async (videoId) => {
+  try {
+    const { data: comments, error } = await supabase
+      .from('comments')
+      .select(`
+        id,
+        text,
+        created_at,
+        users (
+          id,
+          display_name,
+          avatar_url
+        )
+      `)
+      .eq('video_id', videoId)
+      .order('created_at', { ascending: false });
+
+    return { comments: comments || [], error };
+  } catch (error) {
+    logger.error('DB', 'Ошибка получения комментариев видео для админки', error);
+    return { comments: [], error };
+  }
+};
+
+/**
+ * Получить теги видео для админки с информацией о создателе
+ * @param {string} videoId - ID видео
+ * @returns {Promise<Object>} результат с тегами и ошибкой
+ */
+const getVideoTagsForAdmin = async (videoId) => {
+  try {
+    const { data: videoTags, error } = await supabase
+      .from('video_tags')
+      .select(`
+        video_id,
+        tag_id,
+        created_at,
+        tags (
+          id,
+          name,
+          usage_count,
+          user_id,
+          created_at,
+          users!tags_user_id_fkey (
+            id,
+            display_name,
+            avatar_url
+          )
+        )
+      `)
+      .eq('video_id', videoId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return { tags: [], error };
+    }
+
+    // Обогащаем данные тегов информацией о создателе и том, кто присвоил тег
+    const enrichedTags = videoTags.map(vt => {
+      const tag = vt.tags;
+      if (!tag) return null;
+
+      return {
+        id: tag.id,
+        name: tag.name,
+        usage_count: tag.usage_count,
+        created_at: tag.created_at,
+        creator: tag.users ? {
+          id: tag.users.id,
+          display_name: tag.users.display_name,
+          avatar_url: tag.users.avatar_url
+        } : null,
+        assigned_at: vt.created_at,
+        assigned_by: 'Система' // Пока что не отслеживаем, кто именно присвоил тег
+      };
+    }).filter(Boolean);
+
+    return { tags: enrichedTags, error: null };
+  } catch (error) {
+    logger.error('DB', 'Ошибка получения тегов видео для админки', error);
+    return { tags: [], error };
+  }
+};
+
+/**
+ * Удалить видео администратором
+ * @param {string} videoId - ID видео
+ * @returns {Promise<Object>} результат операции
+ */
+const deleteVideoForAdmin = async (videoId) => {
+  try {
+    const result = await deleteVideosWithTagCleanup(videoId);
+    return { success: true, ...result };
+  } catch (error) {
+    logger.error('DB', 'Ошибка удаления видео администратором', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Массовое удаление видео администратором
+ * @param {string[]} videoIds - массив ID видео
+ * @returns {Promise<Object>} результат операции
+ */
+const bulkDeleteVideosForAdmin = async (videoIds) => {
+  try {
+    const result = await deleteVideosWithTagCleanup(videoIds);
+    return { success: true, ...result };
+  } catch (error) {
+    logger.error('DB', 'Ошибка массового удаления видео администратором', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Обновить теги видео администратором
+ * @param {string} videoId - ID видео
+ * @param {string[]} tagNames - массив названий тегов
+ * @param {string} userId - ID пользователя (опционально)
+ * @returns {Promise<Object>} результат операции
+ */
+const updateVideoTagsForAdmin = async (videoId, tagNames, userId = null) => {
+  try {
+    // Удаляем старые теги
+    const { error: deleteError } = await supabase
+      .from('video_tags')
+      .delete()
+      .eq('video_id', videoId);
+
+    if (deleteError) {
+      logger.error('DB', 'Ошибка удаления старых тегов', deleteError);
+      return { success: false, error: deleteError };
+    }
+
+    // Добавляем новые теги
+    if (tagNames && tagNames.length > 0) {
+      const result = await assignTagsToVideo(videoId, tagNames, userId);
+      if (!result.success) {
+        return result;
+      }
+    }
+
+    return { success: true };
+  } catch (error) {
+    logger.error('DB', 'Ошибка обновления тегов видео администратором', error);
+    return { success: false, error };
+  }
+};
+
 module.exports = {
   getVideoCountsByUsers,
   getCommentsCountsByUsers,
@@ -1129,5 +1936,26 @@ module.exports = {
   getVideoComments,
   getCommentsStats,
   deleteVideoComments,
-  deleteUserComments
+  deleteUserComments,
+  // Новые функции для работы с комментариями
+  getCommentsForVideo,
+  createCommentForVideo,
+  getAllCommentsForAdmin,
+  getCommentsWrittenByUser,
+  getCommentsReceivedByUser,
+  // Новые функции для работы с лайками
+  getLikesGivenByUser,
+  getLikesReceivedByUser,
+  // Новые функции для работы с видео
+  getAllVideosForAdmin,
+  searchVideosForAdmin,
+  getVideoLikesForAdmin,
+  getVideoViewsForAdmin,
+  getVideoCommentsForAdmin,
+  getVideoTagsForAdmin,
+  deleteVideoForAdmin,
+  bulkDeleteVideosForAdmin,
+  updateVideoTagsForAdmin,
+  updateVideoViewsCount,
+  fixVideoViewsCounters
 };

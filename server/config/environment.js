@@ -15,16 +15,16 @@ const config = {
   // Supabase
   supabase: {
     url: process.env.SUPABASE_URL,
-    anonKey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY,
+    anonKey: process.env.SUPABASE_KEY,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY
   },
 
   // Yandex OAuth
   yandex: {
-    clientId: process.env.YANDEX_CLIENT_ID || '',
-    clientSecret: process.env.YANDEX_CLIENT_SECRET || '',
-    apiKey: process.env.YANDEX_API_KEY || '',
-    redirectUri: process.env.YANDEX_REDIRECT_URI || ''
+    clientId: process.env.YANDEX_CLIENT_ID,
+    clientSecret: process.env.YANDEX_CLIENT_SECRET,
+    apiKey: process.env.YANDEX_API_KEY,
+    redirectUri: process.env.YANDEX_REDIRECT_URI
   },
 
   // Session

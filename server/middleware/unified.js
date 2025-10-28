@@ -570,16 +570,7 @@ class RateLimiter {
   /**
    * Получить статистику
    */
-  getStats() {
-    return {
-      totalKeys: this.requests.size,
-      requests: Array.from(this.requests.entries()).map(([key, data]) => ({
-        key: key.substring(0, 50) + '...', // Обрезаем для безопасности
-        count: data.count,
-        resetTime: new Date(data.resetTime).toISOString()
-      }))
-    };
-  }
+  
 }
 
 // Создаем единственный экземпляр

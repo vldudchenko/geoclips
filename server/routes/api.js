@@ -9,6 +9,7 @@ const config = require('../config/environment');
 const logger = require('../utils/logger');
 const cacheManager = require('../utils/cacheUtils');
 const supabase = require('../config/supabase');
+const dbUtils = require('../utils/dbUtils');
 const { validateAddress, validateAccessToken } = require('../middleware/unified');
 const { requireAuth } = require('../middleware/unified');
 const { updateUserBasicData } = require('../services/userService');
@@ -394,19 +395,11 @@ router.get('/profile/:identifier', async (req, res) => {
       ...video,
       tags: video.video_tags?.map(vt => vt.tags).filter(Boolean) || []
     })) || [];
-
-    // Вычисляем статистику
-    const stats = {
-      videosCount: processedVideos.length,
-      totalLikes: processedVideos.reduce((sum, video) => sum + (video.likes_count || 0), 0),
-      totalViews: processedVideos.reduce((sum, video) => sum + (video.views_count || 0), 0)
-    };
-
+    
     res.json({
       success: true,
       user: userData,
       videos: processedVideos,
-      stats,
       isCurrentUserProfile
     });
 
@@ -593,14 +586,49 @@ router.post('/videos/:videoId/view', async (req, res) => {
       return res.json({ success: true, skipped: true });
     }
 
-    // Пытаемся записать просмотр; для авторизованных действует уникальность (video_id, user_id)
+    // Проверяем, не просматривал ли уже пользователь это видео
+    const { data: existingView, error: checkError } = await supabase
+      .from('video_views')
+      .select('id')
+      .eq('video_id', videoId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (checkError) {
+      logger.error('API', 'Ошибка проверки существующего просмотра', checkError);
+      return res.status(500).json({ error: 'Ошибка проверки просмотра' });
+    }
+
+    // Если пользователь уже просматривал видео, возвращаем текущий счетчик
+    if (existingView) {
+      const { data: videoRow, error: selectError } = await supabase
+        .from('videos')
+        .select('views_count')
+        .eq('id', videoId)
+        .maybeSingle();
+
+      if (selectError) {
+        return res.json({ success: true, viewsCount: 0 });
+      }
+
+      return res.json({ success: true, viewsCount: videoRow?.views_count || 0, alreadyViewed: true });
+    }
+
+    // Записываем новый просмотр
     const { error: insertError } = await supabase
       .from('video_views')
       .insert([{ video_id: videoId, user_id: userId }]);
 
-    if (insertError && insertError.code !== '23505') {
-      // 23505 = уникальное ограничение; игнорируем повтор
-      logger.warn('API', 'Ошибка записи просмотра', insertError);
+    if (insertError) {
+      logger.error('API', 'Ошибка записи просмотра', insertError);
+      return res.status(500).json({ error: 'Ошибка записи просмотра' });
+    }
+
+    // Обновляем счетчик просмотров в таблице videos
+    const updateResult = await dbUtils.updateVideoViewsCount(videoId);
+    
+    if (!updateResult.success) {
+      logger.error('API', 'Ошибка обновления счетчика просмотров', updateResult.error);
     }
 
     // Возвращаем актуальный счетчик
@@ -611,7 +639,7 @@ router.post('/videos/:videoId/view', async (req, res) => {
       .maybeSingle();
 
     if (selectError) {
-      return res.json({ success: true });
+      return res.json({ success: true, viewsCount: 0 });
     }
 
     res.json({ success: true, viewsCount: videoRow?.views_count || 0 });

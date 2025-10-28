@@ -293,19 +293,8 @@ router.delete('/:videoId/tags/:tagId', requireAuth, apiResponse.asyncHandler(asy
     });
   }
 
-  // Уменьшаем счетчик использования тега
-  const { data: tag } = await supabase
-    .from('tags')
-    .select('usage_count')
-    .eq('id', tagId)
-    .single();
-
-  if (tag) {
-    await supabase
-      .from('tags')
-      .update({ usage_count: Math.max(0, (tag.usage_count || 1) - 1) })
-      .eq('id', tagId);
-  }
+  // Пересчитываем счетчик использования тега
+  await dbUtils.updateTagCounters([tagId], true);
 
   
   apiResponse.sendSuccess(res, {
@@ -319,16 +308,7 @@ router.delete('/:videoId/tags/:tagId', requireAuth, apiResponse.asyncHandler(asy
  * Получение списка видео (для администраторов)
  */
 router.get('/admin', requireAdmin, apiResponse.asyncHandler(async (req, res) => {  
-  
-  const { data: videos, error } = await supabase
-    .from('videos')
-    .select(`
-      id, user_id, description, video_url,
-      latitude, longitude, likes_count, views_count,
-      created_at,
-      users (id, yandex_id, display_name, avatar_url)
-    `)
-    .order('created_at', { ascending: false });
+  const { videos, error } = await dbUtils.getAllVideosForAdmin();
 
   if (error) {
     return apiResponse.sendError(res, error, {
@@ -338,7 +318,7 @@ router.get('/admin', requireAdmin, apiResponse.asyncHandler(async (req, res) => 
     });
   }
   
-  apiResponse.sendSuccess(res, { videos: videos || [] });
+  apiResponse.sendSuccess(res, { videos });
 }));
 
 /**
@@ -350,34 +330,18 @@ router.get('/admin/search', requireAdmin, apiResponse.asyncHandler(async (req, r
     limit = 50, offset = 0, minViews, minLikes
   } = req.query;
   
-  
-  let queryBuilder = supabase.from('videos').select(`
-    id, user_id, description, video_url, latitude, longitude,
-    likes_count, views_count, created_at,
-    users (id, yandex_id, display_name, avatar_url)
-  `, { count: 'exact' });
+  const filters = {
+    query,
+    userId,
+    sortBy,
+    order,
+    limit: parseInt(limit),
+    offset: parseInt(offset),
+    minViews,
+    minLikes
+  };
 
-  // Применяем фильтры
-  if (query) {
-    queryBuilder = queryBuilder.ilike('description', `%${query}%`);
-  }
-  if (userId) {
-    queryBuilder = queryBuilder.eq('user_id', userId);
-  }
-  if (minViews) {
-    queryBuilder = queryBuilder.gte('views_count', parseInt(minViews));
-  }
-  if (minLikes) {
-    queryBuilder = queryBuilder.gte('likes_count', parseInt(minLikes));
-  }
-
-  // Сортировка и пагинация
-  const ascending = order === 'asc';
-  queryBuilder = queryBuilder
-    .order(sortBy, { ascending })
-    .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
-
-  const { data: videos, error, count } = await queryBuilder;
+  const { videos, count, error } = await dbUtils.searchVideosForAdmin(filters);
 
   if (error) {
     return apiResponse.sendError(res, error, {
@@ -388,7 +352,7 @@ router.get('/admin/search', requireAdmin, apiResponse.asyncHandler(async (req, r
   }
 
   apiResponse.sendSuccess(res, apiResponse.formatPaginatedResponse(
-    videos || [],
+    videos,
     count,
     parseInt(limit),
     parseInt(offset)
@@ -444,41 +408,104 @@ router.delete('/admin/bulk', requireAdmin, apiResponse.asyncHandler(async (req, 
 /**
  * Получение тегов видео (для администратора)
  */
-router.get('/admin/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+router.get('/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   const { id } = req.params;
   
-  try {
-    const { data: videoTags, error } = await supabase
-      .from('video_tags')
-      .select(`
-        video_id,
-        tag_id,
-        tags (
-          id,
-          name,
-          usage_count
-        )
-      `)
-      .eq('video_id', id);
-    
-    if (error) {
-      logger.error('VIDEO', 'Ошибка получения тегов видео', error);
-      return apiResponse.sendError(res, 'Ошибка получения тегов видео', {
-        statusCode: 500,
-        code: 'DATABASE_ERROR'
-      });
-    }
-    
-    const tags = videoTags.map(vt => vt.tags).filter(Boolean);
-    
-    apiResponse.sendSuccess(res, { tags });
-  } catch (error) {
+  const { tags, error } = await dbUtils.getVideoTagsForAdmin(id);
+  
+  if (error) {
     logger.error('VIDEO', 'Ошибка получения тегов видео', error);
-    apiResponse.sendError(res, 'Ошибка получения тегов видео', {
+    return apiResponse.sendError(res, 'Ошибка получения тегов видео', {
       statusCode: 500,
-      code: 'INTERNAL_ERROR'
+      code: 'DATABASE_ERROR'
     });
   }
+  
+  logger.info('VIDEO', 'Теги получены', { videoId: id, count: tags.length });
+  apiResponse.sendSuccess(res, { tags });
+}));
+
+/**
+ * Получение комментариев видео (для администратора)
+ */
+router.get('/:id/comments', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const { comments, error } = await dbUtils.getVideoCommentsForAdmin(id);
+  
+  if (error) {
+    logger.error('VIDEO', 'Ошибка получения комментариев видео', error);
+    return apiResponse.sendError(res, 'Ошибка получения комментариев видео', {
+      statusCode: 500,
+      code: 'DATABASE_ERROR'
+    });
+  }
+  
+  logger.info('VIDEO', 'Комментарии получены', { videoId: id, count: comments.length });
+  apiResponse.sendSuccess(res, { comments });
+}));
+
+/**
+ * Получение лайков видео (для администратора)
+ */
+router.get('/:id/likes', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const { likes, error } = await dbUtils.getVideoLikesForAdmin(id);
+  
+  if (error) {
+    logger.error('VIDEO', 'Ошибка получения лайков видео', error);
+    return apiResponse.sendError(res, 'Ошибка получения лайков видео', {
+      statusCode: 500,
+      code: 'DATABASE_ERROR'
+    });
+  }
+  
+  apiResponse.sendSuccess(res, { likes });
+}));
+
+/**
+ * Получение просмотров видео (для администратора)
+ */
+router.get('/:id/views', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const { views, error } = await dbUtils.getVideoViewsForAdmin(id);
+  
+  if (error) {
+    logger.error('VIDEO', 'Ошибка получения просмотров видео', error);
+    return apiResponse.sendError(res, 'Ошибка получения просмотров видео', {
+      statusCode: 500,
+      code: 'DATABASE_ERROR'
+    });
+  }
+  
+  apiResponse.sendSuccess(res, { views });
+}));
+
+/**
+ * Исправить счетчики просмотров для всех видео
+ */
+router.post('/admin/fix-views-counters', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+  logger.info('VIDEO', 'Запуск исправления счетчиков просмотров');
+  
+  const result = await dbUtils.fixVideoViewsCounters();
+  
+  if (!result.success) {
+    logger.error('VIDEO', 'Ошибка исправления счетчиков просмотров', result.error);
+    return apiResponse.sendError(res, 'Ошибка исправления счетчиков просмотров', {
+      statusCode: 500,
+      code: 'DATABASE_ERROR'
+    });
+  }
+  
+  logger.info('VIDEO', 'Счетчики просмотров исправлены', result);
+  apiResponse.sendSuccess(res, {
+    message: `Исправлено ${result.fixedCount} из ${result.totalVideos} видео`,
+    fixedCount: result.fixedCount,
+    totalVideos: result.totalVideos,
+    results: result.results
+  });
 }));
 
 /**
@@ -567,8 +594,10 @@ router.put('/admin/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req,
       result.assigned = tagIds.length;
     }
     
-    // Обновляем счетчики тегов
-    await dbUtils.updateTagCounters();
+    // Обновляем счетчики только для тегов, связанных с этим видео
+    if (tagIds && tagIds.length > 0) {
+      await dbUtils.updateTagCounters(tagIds, true);
+    }
     
     logger.info('VIDEO', `Теги обновлены для видео ${id}`, { tagIds, tagNames, result });
     

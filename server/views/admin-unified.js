@@ -38,13 +38,6 @@ function switchTab(tabName) {
     
     // Загружаем данные для вкладки если нужно
     switch(tabName) {
-        case 'dashboard':
-            loadStats();
-            loadDashboardChart();
-            break;
-        case 'analytics':
-            loadAnalytics();
-            break;
         case 'users':
             loadUsers();
             break;
@@ -57,12 +50,7 @@ function switchTab(tabName) {
         case 'comments':
             loadComments();
             break;
-        case 'system':
-            loadSystemInfo();
-            break;
-        case 'logs':
-            loadActivityLogs();
-            break;
+
     }
 }
 
@@ -86,95 +74,6 @@ async function logout() {
     }
 }
 
-// ==================== СТАТИСТИКА И АНАЛИТИКА ====================
-
-/**
- * Загрузка статистики
- */
-async function loadStats() {
-    try {
-        const response = await fetch('/admin/stats', { credentials: 'include' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const data = await response.json();
-        document.getElementById('users-count').textContent = data.usersCount || 0;
-        document.getElementById('videos-count').textContent = data.videosCount || 0;
-        document.getElementById('total-views').textContent = data.totalViews || 0;
-        document.getElementById('total-likes').textContent = data.totalLikes || 0;
-        document.getElementById('tags-count').textContent = data.tagsCount || 0;
-    } catch (error) {
-        console.error('Ошибка загрузки статистики:', error);
-        showNotification('Ошибка загрузки статистики', 'error');
-    }
-}
-
-/**
- * Загрузка графика для дашборда
- */
-async function loadDashboardChart() {
-    try {
-        const response = await fetch('/admin/analytics');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const data = await response.json();
-        
-        // Отображаем простую статистику на дашборде
-        const chartContainer = document.getElementById('dashboard-chart');
-        chartContainer.innerHTML = `
-            <div class="stats-summary">
-                <p><strong>За последние 7 дней:</strong></p>
-                <p>Новых пользователей: ${data.period.last7Days.users}</p>
-                <p>Новых видео: ${data.period.last7Days.videos}</p>
-            </div>
-        `;
-    } catch (error) {
-        console.error('Ошибка загрузки графика:', error);
-    }
-}
-
-/**
- * Загрузка расширенной аналитики
- */
-async function loadAnalytics() {
-    try {
-        showNotification('Загрузка аналитики...', 'info');
-        
-        const response = await fetch('/admin/analytics');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const data = await response.json();
-        
-        // Обновляем периоды
-        document.getElementById('analytics-users-7d').textContent = data.period.last7Days.users;
-        document.getElementById('analytics-videos-7d').textContent = data.period.last7Days.videos;
-        document.getElementById('analytics-users-30d').textContent = data.period.last30Days.users;
-        document.getElementById('analytics-videos-30d').textContent = data.period.last30Days.videos;
-        
-        // Отображаем топ пользователей
-        const topUsersList = document.getElementById('top-users-list');
-        topUsersList.innerHTML = data.topUsers.map(user => `
-            <div class="top-item">
-                <span class="user-name">${user.user_name}</span>
-                <span class="count">${user.videos_count} видео</span>
-            </div>
-        `).join('');
-        
-        // Отображаем топ видео
-        const topVideosList = document.getElementById('top-videos-list');
-        topVideosList.innerHTML = data.topVideos.map(video => `
-            <div class="top-item">
-                <span class="video-title">${video.description || 'Без описания'}</span>
-                <span class="count">${video.views_count} просмотров</span>
-            </div>
-        `).join('');
-        
-        showNotification('Аналитика загружена', 'success');
-    } catch (error) {
-        console.error('Ошибка загрузки аналитики:', error);
-        showNotification('Ошибка загрузки аналитики', 'error');
-    }
-}
-
 // ==================== НАВИГАЦИЯ ПО ДАННЫМ ====================
 
 /**
@@ -182,6 +81,60 @@ async function loadAnalytics() {
  */
 function handleDisabledClick(message) {
     showNotification(message, 'warning');
+}
+
+/**
+ * Переход к профилю пользователя
+ */
+function navigateToUserProfile(userId, userName) {
+    console.log('👤 Переход к профилю пользователя:', { userId, userName });
+    
+    // Переключаемся на вкладку пользователей
+    switchTab('users');
+    
+    // Фильтруем пользователей по ID
+    setTimeout(() => {
+        // Очищаем поле поиска
+        const searchInput = document.getElementById('users-search');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        
+        // Загружаем пользователей и выделяем нужного
+        loadUsers().then(() => {
+            // Активируем режим размытия для контейнера
+            const usersContainer = document.querySelector('.users-table-container');
+            if (usersContainer) {
+                usersContainer.classList.add('blur-mode');
+                
+                // Добавляем обработчик клика для отключения размытия
+                const disableBlurHandler = (e) => {
+                    if (e.target.closest('tr')) {
+                        usersContainer.classList.remove('blur-mode');
+                        usersContainer.removeEventListener('click', disableBlurHandler);
+                    }
+                };
+                usersContainer.addEventListener('click', disableBlurHandler);
+            }
+            
+            // Выделяем строку пользователя
+            const userRow = document.getElementById(`user-row-${userId}`);
+            if (userRow) {
+                userRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                userRow.classList.add('highlighted');
+                
+                // Убираем выделение и размытие через 4 секунды
+                setTimeout(() => {
+                    userRow.classList.remove('highlighted');
+                    if (usersContainer) {
+                        usersContainer.classList.remove('blur-mode');
+                    }
+                }, 4000);
+            }
+        });
+    }, 100);
+    
+    showNotification(`Показываем профиль пользователя: ${userName}`, 'info');
 }
 
 /**
@@ -609,9 +562,9 @@ function displayUsers(users) {
                         <th title="Уникальный идентификатор">ID</th>
                         <th title="Количество загруженных видео">Видео</th>
                         <th title="Дата регистрации">Дата</th>
-                        <th title="Комментарии написанные пользователем">Комм. нап.</th>
+                        <th title="Комментарии созданные пользователем">Комм. созд.</th>
                         <th title="Комментарии полученные к видео пользователя">Комм. пол.</th>
-                        <th title="Лайки поставленные пользователем">Лайки пост.</th>
+                        <th title="Лайки созданные пользователем">Лайки созд.</th>
                         <th title="Лайки полученные за видео пользователя">Лайки пол.</th>
                         <th title="Теги созданные пользователем">Теги созд.</th>
                         <th title="Теги использованные в видео пользователя">Теги исп.</th>
@@ -720,11 +673,21 @@ async function loadVideos() {
     try {
         showNotification('Загрузка видео...', 'info');
         
-        const response = await fetch('/admin/videos/admin');
+        const params = new URLSearchParams({
+            query: '',
+            minViews: '',
+            minLikes: '',
+            sortBy: 'created_at',
+            order: 'desc',
+            limit: ITEMS_PER_PAGE,
+            offset: 0
+        });
+        
+        const response = await fetch(`/admin/videos/admin/search?${params}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
-        displayVideos(data.videos);
+        displayVideos(data.data);
         
         showNotification('Видео загружены', 'success');
     } catch (error) {
@@ -753,6 +716,7 @@ function displayVideos(videos) {
                     <th>Автор</th>
                     <th>Просмотры</th>
                     <th>Лайки</th>
+                    <th>Комментарии</th>
                     <th>Дата</th>
                     <th>Координаты</th>
                     <th>Теги</th>
@@ -769,10 +733,13 @@ function displayVideos(videos) {
                             <div class="video-description">${video.description || 'Без описания'}</div>
                         </td>
                         <td>
-                            <div class="video-author">${video.users?.display_name || 'Неизвестно'}</div>
+                            <div class="video-author clickable" onclick="navigateToUserProfile('${video.users?.id || ''}', '${video.users?.display_name || 'Неизвестно'}')" title="Перейти к профилю пользователя">
+                                ${video.users?.display_name || 'Неизвестно'}
+                            </div>
                         </td>
-                        <td class="video-stats">${video.views_count || 0}</td>
-                        <td class="video-stats">${video.likes_count || 0}</td>
+                        <td class="video-stats video-views ${(video.views_count || 0) === 0 ? 'disabled' : ''}" ${(video.views_count || 0) === 0 ? `onclick="handleDisabledClick('У видео нет просмотров для отображения')"` : `onclick="showVideoViews('${video.id}', '${video.description || 'Без описания'}')"`} title="${(video.views_count || 0) === 0 ? 'Нет просмотров для отображения' : 'Показать просмотры видео'}">${video.views_count || 0}</td>
+                        <td class="video-stats video-likes ${(video.likes_count || 0) === 0 ? 'disabled' : ''}" ${(video.likes_count || 0) === 0 ? `onclick="handleDisabledClick('У видео нет лайков для отображения')"` : `onclick="showVideoLikes('${video.id}', '${video.description || 'Без описания'}')"`} title="${(video.likes_count || 0) === 0 ? 'Нет лайков для отображения' : 'Показать лайки видео'}">${video.likes_count || 0}</td>
+                        <td class="video-stats video-comments ${(video.comments_count || 0) === 0 ? 'disabled' : ''}" ${(video.comments_count || 0) === 0 ? `onclick="handleDisabledClick('У видео нет комментариев для отображения')"` : `onclick="showVideoComments('${video.id}', '${video.description || 'Без описания'}')"`} title="${(video.comments_count || 0) === 0 ? 'Нет комментариев для отображения' : 'Показать комментарии видео'}">${video.comments_count || 0}</td>
                         <td class="video-date">${new Date(video.created_at).toLocaleDateString()}</td>
                         <td class="video-coords">
                             ${video.latitude && video.longitude ? 
@@ -780,8 +747,8 @@ function displayVideos(videos) {
                                 'Не указаны'
                             }
                         </td>
-                        <td>
-                            <div class="video-tags" id="video-tags-${video.id}">
+                        <td class="video-tags-cell">
+                            <div class="video-tags" id="video-tags-${video.id}" onclick="showVideoTags('${video.id}', '${video.description || 'Без описания'}')">
                                 <div class="loading-tags">Загрузка...</div>
                             </div>
                         </td>
@@ -810,7 +777,7 @@ function displayVideos(videos) {
  */
 async function loadVideoTags(videoId) {
     try {
-        const response = await fetch(`/admin/videos/admin/${videoId}/tags`, { credentials: 'include' });
+        const response = await fetch(`/admin/videos/${videoId}/tags`, { credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
@@ -882,7 +849,7 @@ async function deleteVideo(videoId) {
     try {
         showNotification('Удаление видео...', 'info');
         
-        const response = await fetch(`/admin/videos/admin/${videoId}`, { method: 'DELETE' });
+        const response = await fetch(`/admin/videos/${videoId}`, { method: 'DELETE' });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const result = await response.json();
@@ -936,7 +903,7 @@ async function bulkDeleteVideos() {
     try {
         showNotification('Массовое удаление видео...', 'info');
         
-        const response = await fetch('/admin/videos/admin/bulk', {
+        const response = await fetch('/admin/videos/bulk', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ videoIds: selectedVideoIds })
@@ -1311,7 +1278,7 @@ async function openTagsModal(videoId, videoDescription, videoAuthor) {
         availableTags = tagsData.tags || [];
         
         // Загружаем текущие теги видео
-        const videoTagsResponse = await fetch(`/admin/videos/admin/${videoId}/tags`, { credentials: 'include' });
+        const videoTagsResponse = await fetch(`/admin/videos/${videoId}/tags`, { credentials: 'include' });
         if (!videoTagsResponse.ok) throw new Error(`HTTP ${videoTagsResponse.status}`);
         const videoTagsData = await videoTagsResponse.json();
         selectedTagsForVideo = videoTagsData.tags || [];
@@ -1471,7 +1438,7 @@ async function saveVideoTags() {
     try {
         showNotification('Сохранение тегов...', 'info');
         
-        const response = await fetch(`/admin/videos/admin/${currentVideoId}/tags`, {
+        const response = await fetch(`/admin/videos/${currentVideoId}/tags`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
@@ -1556,36 +1523,12 @@ async function loadComments() {
         // Обновляем статистику
         document.getElementById('comments-total').textContent = data.total || 0;
         
-        // Загружаем дополнительную статистику
-        loadCommentsStats();
-        
-        showNotification(`Загружено ${comments.length} комментариев`, 'success');
+        showNotification(`Комментарии загружены`, 'success');
     } catch (error) {
         console.error('Ошибка загрузки комментариев:', error);
         showNotification('Ошибка загрузки комментариев', 'error');
         document.getElementById('comments-container').innerHTML = 
             '<div class="error">Ошибка загрузки комментариев</div>';
-    }
-}
-
-/**
- * Загрузка статистики по комментариям
- */
-async function loadCommentsStats() {
-    try {
-        const response = await fetch('/admin/stats', { credentials: 'include' });
-        if (!response.ok) return;
-        
-        const data = await response.json();
-        
-        // Обновляем статистику за последние 24 часа
-        // (предполагается, что бэкенд возвращает эти данные)
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        
-        // Это временное решение, можно добавить отдельный эндпоинт для статистики комментариев
-        document.getElementById('comments-recent').textContent = '-';
-    } catch (error) {
-        console.error('Ошибка загрузки статистики комментариев:', error);
     }
 }
 
@@ -1702,198 +1645,334 @@ function formatDate(dateString) {
     });
 }
 
-// ==================== СИСТЕМА ====================
-
-/**
- * Загрузка системной информации
- */
-async function loadSystemInfo() {
-    try {
-        showNotification('Загрузка системной информации...', 'info');
-        
-        const response = await fetch('/admin/system/info');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const data = await response.json();
-        displaySystemInfo(data);
-        
-        showNotification('Системная информация загружена', 'success');
-    } catch (error) {
-        console.error('Ошибка загрузки системной информации:', error);
-        showNotification('Ошибка загрузки системной информации', 'error');
-    }
-}
-
-/**
- * Отображение системной информации
- */
-function displaySystemInfo(info) {
-    const container = document.getElementById('system-info-container');
-    
-    container.innerHTML = `
-        <div class="system-info">
-            <div class="info-section">
-                <h3>🖥️ Операционная система</h3>
-                <p>Платформа: ${info.os.platform}</p>
-                <p>Хост: ${info.os.hostname}</p>
-                <p>Время работы: ${Math.floor(info.os.uptime / 3600)} часов</p>
-                <p>Node.js: ${info.os.nodeVersion}</p>
-            </div>
-            
-            <div class="info-section">
-                <h3>💾 Память</h3>
-                <p>Общая: ${Math.round(info.memory.total / 1024 / 1024)} MB</p>
-                <p>Свободная: ${Math.round(info.memory.free / 1024 / 1024)} MB</p>
-                <p>Используется: ${Math.round(info.memory.used / 1024 / 1024)} MB</p>
-                <p>Загрузка: ${info.memory.usagePercent}%</p>
-            </div>
-            
-            <div class="info-section">
-                <h3>⚡ Процессор</h3>
-                <p>Ядра: ${info.cpu.count}</p>
-                <p>Модель: ${info.cpu.model}</p>
-            </div>
-            
-            <div class="info-section">
-                <h3>🔄 Процесс Node.js</h3>
-                <p>Время работы: ${Math.floor(info.process.uptime / 3600)} часов</p>
-                <p>RSS: ${Math.round(info.process.memory.rss / 1024 / 1024)} MB</p>
-                <p>Heap Total: ${Math.round(info.process.memory.heapTotal / 1024 / 1024)} MB</p>
-                <p>Heap Used: ${Math.round(info.process.memory.heapUsed / 1024 / 1024)} MB</p>
-            </div>
-        </div>
-    `;
-}
-
-/**
- * Экспорт данных
- */
-async function exportData(type, format) {
-    try {
-        showNotification('Экспорт данных...', 'info');
-        
-        const response = await fetch(`/admin/system/export/${type}?format=${format}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${type}_export_${Date.now()}.${format}`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        showNotification('Данные экспортированы', 'success');
-    } catch (error) {
-        console.error('Ошибка экспорта:', error);
-        showNotification('Ошибка экспорта данных', 'error');
-    }
-}
-
-/**
- * Очистка данных
- */
-async function cleanupData(type) {
-    const messages = {
-        'unused_tags': 'удалить неиспользуемые теги',
-        'old_videos': 'удалить старые видео без просмотров (старше 90 дней)'
-    };
-    
-    if (!confirm(`Вы уверены, что хотите ${messages[type]}?\n\nЭто действие нельзя отменить!`)) {
-        return;
-    }
-    
-    try {
-        showNotification('Очистка данных...', 'info');
-        
-        const response = await fetch('/admin/system/cleanup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type })
-        });
-        
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const result = await response.json();
-        showNotification(`Удалено записей: ${result.deletedCount}`, 'success');
-        loadStats();
-    } catch (error) {
-        console.error('Ошибка очистки данных:', error);
-        showNotification('Ошибка очистки данных', 'error');
-    }
-}
-
-// ==================== ЛОГИ ====================
-
-/**
- * Загрузка логов активности
- */
-async function loadActivityLogs() {
-    try {
-        showNotification('Загрузка логов...', 'info');
-        
-        const response = await fetch('/admin/activity-logs');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const data = await response.json();
-        displayActivityLogs(data.logs);
-        
-        showNotification('Логи загружены', 'success');
-    } catch (error) {
-        console.error('Ошибка загрузки логов:', error);
-        showNotification('Ошибка загрузки логов', 'error');
-    }
-}
-
-/**
- * Отображение логов активности
- */
-function displayActivityLogs(logs) {
-    const container = document.getElementById('activity-logs-container');
-    
-    if (!logs || logs.length === 0) {
-        container.innerHTML = '<div class="no-data">Логи не найдены</div>';
-        return;
-    }
-    
-    container.innerHTML = logs.map(log => `
-        <div class="log-entry">
-            <div class="log-time">${new Date(log.timestamp).toLocaleString()}</div>
-            <div class="log-type">${log.type}</div>
-            <div class="log-user">${log.user}</div>
-            <div class="log-description">${log.description}</div>
-        </div>
-    `).join('');
-}
-
 // ==================== УТИЛИТЫ ====================
 
 /**
  * Показать уведомление
  */
 function showNotification(message, type = 'info') {
+    // Создаем контейнер для уведомлений, если его нет
+    let container = document.getElementById('notifications-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notifications-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+        `;
+        document.body.appendChild(container);
+    }
+    
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
     
-    document.body.appendChild(notification);
+    // Добавляем уведомление в контейнер
+    container.appendChild(notification);
     
+    // Анимация появления
     setTimeout(() => {
-        notification.remove();
+        notification.style.opacity = '1';
+        notification.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // Удаляем уведомление через 3 секунды
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateX(100%)';
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+            
+            // Если контейнер пустой, удаляем его
+            if (container && container.children.length === 0) {
+                container.remove();
+            }
+        }, 300);
     }, 3000);
+}
+
+// ==================== МОДАЛЬНЫЕ ОКНА ДЛЯ ВИДЕО ====================
+
+/**
+ * Показать просмотры видео
+ */
+async function showVideoViews(videoId, videoDescription) {
+    try {
+        showNotification('Загрузка информации о просмотрах...', 'info');
+        
+        const response = await fetch(`/admin/videos/${videoId}/views`, { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        const views = data.views || [];
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>👁️ Просмотры видео: ${videoDescription}</h3>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    ${views.length > 0 && views[0].viewers ? `
+                        <div class="views-summary">
+                            <div class="views-total">
+                                <span class="total-count">${views[0].total_views}</span>
+                                <span class="total-label">всего просмотров</span>
+                            </div>
+                        </div>
+                        <div class="viewers-list">
+                            <h4>👥 Пользователи, просмотревшие видео:</h4>
+                            ${views[0].viewers.length > 0 ? `
+                                <div class="viewers-grid">
+                                    ${views[0].viewers.map(viewer => `
+                                        <div class="viewer-item">
+                                            <div class="viewer-avatar">
+                                                ${viewer.user.avatar_url ? 
+                                                    `<img src="${viewer.user.avatar_url}" alt="${viewer.user.display_name}" class="user-avatar-small">` : 
+                                                    `<div class="user-avatar-placeholder">${(viewer.user.display_name || 'U').charAt(0).toUpperCase()}</div>`
+                                                }
+                                            </div>
+                                            <div class="viewer-info">
+                                                <div class="viewer-name">${viewer.user.display_name}</div>
+                                                <div class="viewer-date">${formatDate(viewer.viewed_at)}</div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : '<div class="no-data">Нет данных о просмотрах</div>'}
+                        </div>
+                    ` : '<div class="no-data">Информация о просмотрах недоступна</div>'}
+                </div>
+            </div>
+        `;
+        
+        // Закрытие при клике вне модального окна
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+        
+        document.body.appendChild(modal);
+        showNotification(`Загружена информация о ${views[0]?.total_views || 0} просмотрах от ${views[0]?.viewers?.length || 0} пользователей`, 'success');
+        
+    } catch (error) {
+        console.error('Ошибка загрузки просмотров:', error);
+        showNotification('Ошибка загрузки просмотров', 'error');
+    }
+}
+
+/**
+ * Показать комментарии видео
+ */
+async function showVideoComments(videoId, videoDescription) {
+    try {
+        showNotification('Загрузка комментариев...', 'info');
+        
+        const response = await fetch(`/admin/videos/${videoId}/comments`, { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        const comments = data.comments || [];
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>💬 Комментарии к видео: ${videoDescription}</h3>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    ${comments.length > 0 ? `
+                        <div class="comments-list">
+                            ${comments.map(comment => `
+                                <div class="comment-item">
+                                    <div class="comment-header">
+                                        <div class="comment-user">
+                                            ${comment.users?.avatar_url ? 
+                                                `<img src="${comment.users.avatar_url}" alt="${comment.users.display_name}" class="user-avatar-small">` : 
+                                                `<div class="user-avatar-placeholder">${(comment.users?.display_name || 'U').charAt(0).toUpperCase()}</div>`
+                                            }
+                                            <span class="user-name">${comment.users?.display_name || 'Неизвестный пользователь'}</span>
+                                        </div>
+                                        <div class="comment-date">${new Date(comment.created_at).toLocaleString()}</div>
+                                    </div>
+                                    <div class="comment-text">${escapeHtml(comment.text)}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<div class="no-data">Комментариев пока нет</div>'}
+                </div>
+            </div>
+        `;
+        
+        // Закрытие при клике вне модального окна
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+        
+        document.body.appendChild(modal);
+        showNotification(`Загружено ${comments.length} комментариев`, 'success');
+        
+    } catch (error) {
+        console.error('Ошибка загрузки комментариев:', error);
+        showNotification('Ошибка загрузки комментариев', 'error');
+    }
+}
+
+/**
+ * Показать лайки видео
+ */
+async function showVideoLikes(videoId, videoDescription) {
+    try {
+        showNotification('Загрузка лайков...', 'info');
+        
+        const response = await fetch(`/admin/videos/${videoId}/likes`, { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        const likes = data.likes || [];
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>❤️ Лайки к видео: ${videoDescription}</h3>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    ${likes.length > 0 ? `
+                        <div class="likes-list">
+                            ${likes.map(like => `
+                                <div class="like-item">
+                                    <div class="like-header">
+                                        <div class="like-user">
+                                            ${like.users?.avatar_url ? 
+                                                `<img src="${like.users.avatar_url}" alt="${like.users.display_name}" class="user-avatar-small">` : 
+                                                `<div class="user-avatar-placeholder">${(like.users?.display_name || 'U').charAt(0).toUpperCase()}</div>`
+                                            }
+                                            <span class="user-name">${like.users?.display_name || 'Неизвестный пользователь'}</span>
+                                        </div>
+                                        <div class="like-date">${new Date(like.created_at).toLocaleString()}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<div class="no-data">Лайков пока нет</div>'}
+                </div>
+            </div>
+        `;
+        
+        // Закрытие при клике вне модального окна
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+        
+        document.body.appendChild(modal);
+        showNotification(`Загружено ${likes.length} лайков`, 'success');
+        
+    } catch (error) {
+        console.error('Ошибка загрузки лайков:', error);
+        showNotification('Ошибка загрузки лайков', 'error');
+    }
+}
+
+/**
+ * Показать теги видео
+ */
+async function showVideoTags(videoId, videoDescription) {
+    try {
+        showNotification('Загрузка тегов...', 'info');
+        
+        const response = await fetch(`/admin/videos/${videoId}/tags`, { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        const tags = data.tags || [];
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🏷️ Теги видео: ${videoDescription}</h3>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    ${tags.length > 0 ? `
+                        <div class="tags-list">
+                            ${tags.map(tag => `
+                                <div class="tag-item">
+                                    <div class="tag-item-info">
+                                        <div class="tag-item-name">${tag.name}</div>
+                                        <div class="tag-item-usage">Использований: ${tag.usage_count || 0}</div>
+                                        <div class="tag-item-creator">
+                                            <strong>Создатель:</strong> 
+                                            ${tag.creator ? `
+                                                <span class="creator-info">
+                                                    ${tag.creator.avatar_url ? 
+                                                        `<img src="${tag.creator.avatar_url}" alt="${tag.creator.display_name}" class="user-avatar-small">` : 
+                                                        `<div class="user-avatar-placeholder">${(tag.creator.display_name || 'U').charAt(0).toUpperCase()}</div>`
+                                                    }
+                                                    ${tag.creator.display_name || 'Неизвестно'}
+                                                </span>
+                                            ` : 'Система'}
+                                        </div>
+                                        <div class="tag-item-assigned">
+                                            <strong>Присвоен:</strong> 
+                                            <span class="assigned-info">
+                                                ${tag.assigned_by || 'Система'} 
+                                                <span class="assigned-date">(${new Date(tag.assigned_at).toLocaleDateString()})</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<div class="no-data">Тегов пока нет</div>'}
+                </div>
+            </div>
+        `;
+        
+        // Закрытие при клике вне модального окна
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+        
+        document.body.appendChild(modal);
+        showNotification(`Загружено ${tags.length} тегов`, 'success');
+        
+    } catch (error) {
+        console.error('Ошибка загрузки тегов:', error);
+        showNotification('Ошибка загрузки тегов', 'error');
+    }
 }
 
 /**
  * Инициализация админки
  */
 document.addEventListener('DOMContentLoaded', function() {
-    // Загружаем начальную статистику
-    loadStats();
-    
-    // Обновляем статистику каждые 30 секунд
-    setInterval(loadStats, 30000);
-    
     console.log('Админ-панель GeoClips инициализирована');
+    
+    // Загружаем пользователей по умолчанию (активная вкладка)
+    loadUsers();
 });
