@@ -74,14 +74,15 @@ router.get('/video/:videoId', apiResponse.asyncHandler(async (req, res) => {
       });
     }
 
-    // Получаем общее количество комментариев
-    const { count, error: countError } = await supabase
-      .from('comments')
-      .select('id', { count: 'exact', head: true })
-      .eq('video_id', videoId);
+    // Получаем актуальный счетчик комментариев из таблицы videos
+    const { data: videoData, error: videoCountError } = await supabase
+      .from('videos')
+      .select('comments_count')
+      .eq('id', videoId)
+      .single();
 
-    if (countError) {
-      logger.warn('COMMENTS', 'Ошибка получения количества комментариев', countError);
+    if (videoCountError) {
+      logger.warn('COMMENTS', 'Ошибка получения счетчика комментариев', videoCountError);
     }
 
     // Обогащаем комментарии полем is_edited
@@ -89,7 +90,7 @@ router.get('/video/:videoId', apiResponse.asyncHandler(async (req, res) => {
 
     apiResponse.sendSuccess(res, {
       comments: enrichedComments,
-      total: count || 0,
+      total: videoData?.comments_count || 0,
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
@@ -191,16 +192,31 @@ router.post('/video/:videoId', requireAuth, apiResponse.asyncHandler(async (req,
       });
     }
 
+    // Получаем актуальный счетчик комментариев после создания
+    const { data: videoData, error: videoCreateError } = await supabase
+      .from('videos')
+      .select('comments_count')
+      .eq('id', videoId)
+      .single();
+
+    if (videoCreateError) {
+      logger.warn('COMMENTS', 'Ошибка получения счетчика комментариев', videoCreateError);
+    }
+
     logger.success('COMMENTS', 'Комментарий создан', { 
       commentId: comment.id, 
       videoId, 
-      userId 
+      userId,
+      commentsCount: videoData?.comments_count || 0
     });
 
     // Обогащаем комментарий полем is_edited
     const enrichedComment = enrichComment(comment);
 
-    apiResponse.sendSuccess(res, { comment: enrichedComment }, { statusCode: 201 });
+    apiResponse.sendSuccess(res, { 
+      comment: enrichedComment,
+      commentsCount: videoData?.comments_count || 0
+    }, { statusCode: 201 });
   } catch (error) {
     logger.error('COMMENTS', 'Ошибка создания комментария', error);
     apiResponse.sendError(res, 'Ошибка создания комментария', {
@@ -356,11 +372,28 @@ router.delete('/:commentId', requireAuth, apiResponse.asyncHandler(async (req, r
       });
     }
 
-    logger.success('COMMENTS', 'Комментарий удален', { commentId, userId, isAdmin });
+    // Получаем актуальный счетчик комментариев после удаления
+    const { data: videoData, error: videoDeleteError } = await supabase
+      .from('videos')
+      .select('comments_count')
+      .eq('id', comment.video_id)
+      .single();
+
+    if (videoDeleteError) {
+      logger.warn('COMMENTS', 'Ошибка получения счетчика комментариев', videoDeleteError);
+    }
+
+    logger.success('COMMENTS', 'Комментарий удален', { 
+      commentId, 
+      userId, 
+      isAdmin,
+      commentsCount: videoData?.comments_count || 0
+    });
 
     apiResponse.sendSuccess(res, { 
       message: 'Комментарий удален',
-      commentId 
+      commentId,
+      commentsCount: videoData?.comments_count || 0
     });
   } catch (error) {
     logger.error('COMMENTS', 'Ошибка удаления комментария', error);
@@ -465,6 +498,127 @@ router.delete('/admin/:commentId', requireAdmin, apiResponse.asyncHandler(async 
     apiResponse.sendError(res, 'Ошибка удаления комментария', {
       statusCode: 500,
       code: 'INTERNAL_ERROR'
+    });
+  }
+}));
+
+/**
+ * Получение комментариев пользователя (написанных)
+ */
+router.get('/user/:userId', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  
+  try {
+    const { data: comments, error } = await supabase
+      .from('comments')
+      .select(`
+        id,
+        text,
+        created_at,
+        video_id,
+        videos!inner(
+          id,
+          description,
+          user_id
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('ADMIN', 'Ошибка получения комментариев пользователя', error);
+      return apiResponse.sendError(res, error, {
+        statusCode: 500,
+        code: 'DB_ERROR',
+        operation: 'получение комментариев пользователя'
+      });
+    }
+
+    const processedComments = comments?.map(comment => ({
+      id: comment.id,
+      text: comment.text,
+      created_at: comment.created_at,
+      video_id: comment.video_id,
+      video_description: comment.videos?.description || 'Без описания'
+    })) || [];
+
+    apiResponse.sendSuccess(res, { comments: processedComments });
+  } catch (error) {
+    logger.error('ADMIN', 'Ошибка в получении комментариев пользователя', error);
+    apiResponse.sendError(res, 'Ошибка сервера', {
+      statusCode: 500,
+      code: 'SERVER_ERROR'
+    });
+  }
+}));
+
+/**
+ * Получение комментариев полученных пользователем (к его видео)
+ */
+router.get('/received/:userId', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  
+  try {
+    // Сначала получаем видео пользователя
+    const { data: userVideos, error: videosError } = await supabase
+      .from('videos')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (videosError) {
+      logger.error('ADMIN', 'Ошибка получения видео пользователя', videosError);
+      return apiResponse.sendError(res, videosError, {
+        statusCode: 500,
+        code: 'DB_ERROR',
+        operation: 'получение видео пользователя'
+      });
+    }
+
+    if (!userVideos || userVideos.length === 0) {
+      return apiResponse.sendSuccess(res, { comments: [] });
+    }
+
+    const videoIds = userVideos.map(video => video.id);
+
+    // Получаем комментарии к этим видео
+    const { data: comments, error } = await supabase
+      .from('comments')
+      .select(`
+        id,
+        text,
+        created_at,
+        video_id,
+        videos!inner(
+          id,
+          description
+        )
+      `)
+      .in('video_id', videoIds)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('ADMIN', 'Ошибка получения полученных комментариев', error);
+      return apiResponse.sendError(res, error, {
+        statusCode: 500,
+        code: 'DB_ERROR',
+        operation: 'получение полученных комментариев'
+      });
+    }
+
+    const processedComments = comments?.map(comment => ({
+      id: comment.id,
+      text: comment.text,
+      created_at: comment.created_at,
+      video_id: comment.video_id,
+      video_description: comment.videos?.description || 'Без описания'
+    })) || [];
+
+    apiResponse.sendSuccess(res, { comments: processedComments });
+  } catch (error) {
+    logger.error('ADMIN', 'Ошибка в получении полученных комментариев', error);
+    apiResponse.sendError(res, 'Ошибка сервера', {
+      statusCode: 500,
+      code: 'SERVER_ERROR'
     });
   }
 }));

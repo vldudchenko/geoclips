@@ -15,12 +15,15 @@ const apiResponse = require('../middleware/apiResponse');
  */
 router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   
+  logger.info('ADMIN', 'Начинаем загрузку пользователей');
+  
   const { data: users, error } = await supabase
     .from('users')
     .select('id, yandex_id, first_name, last_name, display_name, avatar_url, created_at')
     .order('created_at', { ascending: false });
 
   if (error) {
+    logger.error('ADMIN', 'Ошибка получения пользователей', error);
     return apiResponse.sendError(res, error, {
       statusCode: 500,
       code: 'DB_ERROR',
@@ -28,15 +31,73 @@ router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
     });
   }
 
-  // Получаем количество видео для каждого пользователя
+  logger.info('ADMIN', 'Пользователи получены', { 
+    count: users?.length || 0,
+    firstUser: users?.[0] ? { id: users[0].id, name: users[0].display_name } : null
+  });
+
+  // Получаем расширенную статистику для каждого пользователя
   const userIds = Array.isArray(users) ? users.map(u => u.id) : [];
-  const videosCounts = await dbUtils.getVideoCountsByUsers(userIds);
+  
+  logger.info('ADMIN', 'Загружаем статистику пользователей', { 
+    usersCount: users?.length || 0, 
+    userIds: userIds.slice(0, 3) 
+  });
+  
+  const [
+    videosCounts,
+    commentsWritten,
+    commentsReceived,
+    likesGiven,
+    likesReceived,
+    tagsCreated,
+    tagsUsed
+  ] = await Promise.all([
+    dbUtils.getVideoCountsByUsers(userIds),
+    dbUtils.getCommentsWrittenByUsers(userIds),
+    dbUtils.getCommentsReceivedByUsers(userIds),
+    dbUtils.getLikesGivenByUsers(userIds),
+    dbUtils.getLikesReceivedByUsers(userIds),
+    dbUtils.getTagsCountsByUsers(userIds),
+    dbUtils.getTagsUsedByUsers(userIds)
+  ]);
+
+  logger.info('ADMIN', 'Статистика загружена', {
+    videosCounts: Object.keys(videosCounts).length,
+    commentsWritten: Object.keys(commentsWritten).length,
+    commentsReceived: Object.keys(commentsReceived).length,
+    likesGiven: Object.keys(likesGiven).length,
+    likesReceived: Object.keys(likesReceived).length,
+    tagsCreated: Object.keys(tagsCreated).length,
+    tagsUsed: Object.keys(tagsUsed).length
+  });
 
   // Обрабатываем данные
   const processedUsers = Array.isArray(users) ? users.map(user => ({
     ...user,
-    videosCount: videosCounts[user.id] || 0
+    videosCount: videosCounts[user.id] || 0,
+    commentsWritten: commentsWritten[user.id] || 0,
+    commentsReceived: commentsReceived[user.id] || 0,
+    likesGiven: likesGiven[user.id] || 0,
+    likesReceived: likesReceived[user.id] || 0,
+    tagsCreated: tagsCreated[user.id] || 0,
+    tagsUsed: tagsUsed[user.id] || 0,
+    // Обратная совместимость
+    commentsCount: commentsWritten[user.id] || 0,
+    likeCount: likesReceived[user.id] || 0,
+    tagsCount: tagsCreated[user.id] || 0
   })) : [];
+
+  logger.info('ADMIN', 'Данные обработаны', {
+    processedUsers: processedUsers.length,
+    sampleUser: processedUsers[0] ? {
+      id: processedUsers[0].id,
+      videosCount: processedUsers[0].videosCount,
+      commentsWritten: processedUsers[0].commentsWritten,
+      likesGiven: processedUsers[0].likesGiven,
+      tagsCreated: processedUsers[0].tagsCreated
+    } : null
+  });
 
   apiResponse.sendSuccess(res, { users: processedUsers });
 }));

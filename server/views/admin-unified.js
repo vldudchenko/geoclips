@@ -175,7 +175,372 @@ async function loadAnalytics() {
     }
 }
 
-// ==================== ПОЛЬЗОВАТЕЛИ ====================
+// ==================== НАВИГАЦИЯ ПО ДАННЫМ ====================
+
+/**
+ * Обработка клика по неактивному элементу
+ */
+function handleDisabledClick(message) {
+    showNotification(message, 'warning');
+}
+
+/**
+ * Переход к видео пользователя
+ */
+function navigateToUserVideos(userId, userName) {
+    console.log('🎬 Переход к видео пользователя:', { userId, userName });
+    
+    // Переключаемся на вкладку видео
+    switchTab('videos');
+    
+    // Фильтруем видео по пользователю
+    setTimeout(() => {
+        // Очищаем поле поиска
+        const searchInput = document.getElementById('videos-search');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        
+        // Загружаем видео пользователя
+        loadUserVideos(userId, userName);
+    }, 100);
+    
+    showNotification(`Показываем видео пользователя: ${userName}`, 'info');
+}
+
+/**
+ * Загрузить видео пользователя
+ */
+async function loadUserVideos(userId, userName) {
+    try {
+        showNotification('Загрузка видео пользователя...', 'info');
+        
+        const params = new URLSearchParams({
+            userId: userId,
+            sortBy: 'created_at',
+            order: 'desc',
+            limit: ITEMS_PER_PAGE,
+            offset: 0
+        });
+        
+        const response = await fetch(`/admin/videos/admin/search?${params}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        
+        // Обновляем заголовок для показа фильтра
+        const videosContainer = document.getElementById('videos-container');
+        if (videosContainer) {
+            const existingHeader = videosContainer.querySelector('.filter-header');
+            if (existingHeader) {
+                existingHeader.remove();
+            }
+            
+            const filterHeader = document.createElement('div');
+            filterHeader.className = 'filter-header';
+            filterHeader.innerHTML = `
+                <div class="filter-info">
+                    <span class="filter-label">Фильтр:</span>
+                    <span class="filter-value">Видео пользователя "${userName}"</span>
+                    <button class="btn btn-secondary btn-small" onclick="clearVideoFilter()">Сбросить фильтр</button>
+                </div>
+            `;
+            videosContainer.insertBefore(filterHeader, videosContainer.firstChild);
+        }
+        
+        displayVideos(data.data);
+        
+        showNotification(`Найдено видео: ${data.data?.length || 0}`, 'success');
+    } catch (error) {
+        console.error('Ошибка загрузки видео пользователя:', error);
+        showNotification('Ошибка загрузки видео пользователя', 'error');
+    }
+}
+
+/**
+ * Сбросить фильтр видео
+ */
+function clearVideoFilter() {
+    const videosContainer = document.getElementById('videos-container');
+    if (videosContainer) {
+        const filterHeader = videosContainer.querySelector('.filter-header');
+        if (filterHeader) {
+            filterHeader.remove();
+        }
+    }
+    
+    // Загружаем все видео
+    loadVideos();
+}
+
+/**
+ * Переход к комментариям пользователя
+ */
+function navigateToUserComments(userId, userName, type = 'written') {
+    console.log('💬 Переход к комментариям пользователя:', { userId, userName, type });
+    
+    // Переключаемся на вкладку комментариев (если есть) или создаем модальное окно
+    showCommentsModal(userId, userName, type);
+}
+
+/**
+ * Переход к лайкам пользователя
+ */
+function navigateToUserLikes(userId, userName, type = 'given') {
+    console.log('❤️ Переход к лайкам пользователя:', { userId, userName, type });
+    
+    // Создаем модальное окно с лайками
+    showLikesModal(userId, userName, type);
+}
+
+/**
+ * Переход к тегам пользователя
+ */
+function navigateToUserTags(userId, userName, type = 'created') {
+    console.log('🏷️ Переход к тегам пользователя:', { userId, userName, type });
+    
+    // Переключаемся на вкладку тегов
+    switchTab('tags');
+    
+    // Фильтруем теги по пользователю
+    setTimeout(() => {
+        // Очищаем поле поиска
+        const searchInput = document.getElementById('tags-search');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        
+        // Загружаем теги пользователя
+        loadUserTags(userId, userName, type);
+    }, 100);
+    
+    showNotification(`Показываем теги пользователя: ${userName}`, 'info');
+}
+
+/**
+ * Загрузить теги пользователя
+ */
+async function loadUserTags(userId, userName, type) {
+    try {
+        showNotification('Загрузка тегов пользователя...', 'info');
+        
+        const params = new URLSearchParams({
+            userId: userId,
+            sortBy: 'name',
+            order: 'asc',
+            limit: ITEMS_PER_PAGE,
+            offset: 0
+        });
+        
+        const response = await fetch(`/admin/tags?${params}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        
+        // Обновляем заголовок для показа фильтра
+        const tagsContainer = document.getElementById('tags-container');
+        if (tagsContainer) {
+            const existingHeader = tagsContainer.querySelector('.filter-header');
+            if (existingHeader) {
+                existingHeader.remove();
+            }
+            
+            const filterHeader = document.createElement('div');
+            filterHeader.className = 'filter-header';
+            filterHeader.innerHTML = `
+                <div class="filter-info">
+                    <span class="filter-label">Фильтр:</span>
+                    <span class="filter-value">Теги пользователя "${userName}"</span>
+                    <button class="btn btn-secondary btn-small" onclick="clearTagsFilter()">Сбросить фильтр</button>
+                </div>
+            `;
+            tagsContainer.insertBefore(filterHeader, tagsContainer.firstChild);
+        }
+        
+        displayTags(data.tags);
+        
+        showNotification(`Найдено тегов: ${data.tags?.length || 0}`, 'success');
+    } catch (error) {
+        console.error('Ошибка загрузки тегов пользователя:', error);
+        showNotification('Ошибка загрузки тегов пользователя', 'error');
+    }
+}
+
+/**
+ * Сбросить фильтр тегов
+ */
+function clearTagsFilter() {
+    const tagsContainer = document.getElementById('tags-container');
+    if (tagsContainer) {
+        const filterHeader = tagsContainer.querySelector('.filter-header');
+        if (filterHeader) {
+            filterHeader.remove();
+        }
+    }
+    
+    // Загружаем все теги
+    loadTags();
+}
+
+/**
+ * Показать модальное окно с комментариями
+ */
+function showCommentsModal(userId, userName, type) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Комментарии пользователя: ${userName}</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="loading">Загрузка комментариев...</div>
+            </div>
+        </div>
+    `;
+    
+    // Закрытие при клике вне модального окна
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+    
+    document.body.appendChild(modal);
+    
+    // Загружаем комментарии
+    loadUserComments(userId, type, modal.querySelector('.modal-body'));
+}
+
+/**
+ * Показать модальное окно с лайками
+ */
+function showLikesModal(userId, userName, type) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Лайки пользователя: ${userName}</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="loading">Загрузка лайков...</div>
+            </div>
+        </div>
+    `;
+    
+    // Закрытие при клике вне модального окна
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+    
+    document.body.appendChild(modal);
+    
+    // Загружаем лайки
+    loadUserLikes(userId, type, modal.querySelector('.modal-body'));
+}
+
+/**
+ * Закрыть модальное окно
+ */
+function closeModal() {
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+/**
+ * Загрузить комментарии пользователя
+ */
+async function loadUserComments(userId, type, container) {
+    try {
+        const endpoint = type === 'written' ? '/admin/comments/user' : '/admin/comments/received';
+        const response = await fetch(`${endpoint}/${userId}`);
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        
+        if (data.comments && data.comments.length > 0) {
+            container.innerHTML = `
+                <div class="comments-list">
+                    ${data.comments.map(comment => `
+                        <div class="comment-item">
+                            <div class="comment-text">${comment.text}</div>
+                            <div class="comment-meta">
+                                <span>Видео: ${comment.video_description || 'ID: ' + comment.video_id}</span>
+                                <span>Дата: ${new Date(comment.created_at).toLocaleString()}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } else {
+            container.innerHTML = '<div class="no-data">Комментарии не найдены</div>';
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки комментариев:', error);
+        container.innerHTML = '<div class="error">Ошибка загрузки комментариев</div>';
+    }
+}
+
+/**
+ * Загрузить лайки пользователя
+ */
+async function loadUserLikes(userId, type, container) {
+    try {
+        const endpoint = type === 'given' ? '/admin/likes/given' : '/admin/likes/received';
+        const response = await fetch(`${endpoint}/${userId}`);
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        
+        console.log('📊 Получены данные лайков:', data);
+        if (data.likes && data.likes.length > 0) {
+            console.log('👤 Первый лайк:', data.likes[0]);
+        }
+        
+        if (data.likes && data.likes.length > 0) {
+            container.innerHTML = `
+                <div class="likes-list">
+                    ${data.likes.map(like => `
+                        <div class="like-item">
+                            ${type === 'given' ? `
+                                <div class="like-video">Видео: ${like.video_description || 'ID: ' + like.video_id}</div>
+                                <div class="like-meta">
+                                    <span>Дата: ${new Date(like.created_at).toLocaleString()}</span>
+                                </div>
+                            ` : `
+                                <div class="like-header">
+                                    <div class="like-user">
+                                        ${like.user_avatar ? 
+                                            `<img src="${like.user_avatar}" alt="${like.user_name}" class="user-avatar-small">` : 
+                                            `<div class="user-avatar-placeholder">${(like.user_name || 'U').charAt(0).toUpperCase()}</div>`
+                                        }
+                                        <span class="user-name">${like.user_name || 'Неизвестный пользователь'}</span>
+                                    </div>
+                                    <div class="like-date">${new Date(like.created_at).toLocaleString()}</div>
+                                </div>
+                                <div class="like-video">Видео: ${like.video_description || 'ID: ' + like.video_id}</div>
+                            `}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } else {
+            container.innerHTML = '<div class="no-data">Лайки не найдены</div>';
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки лайков:', error);
+        container.innerHTML = '<div class="error">Ошибка загрузки лайков</div>';
+    }
+}
 
 /**
  * Загрузка пользователей
@@ -184,15 +549,28 @@ async function loadUsers() {
     try {
         showNotification('Загрузка пользователей...', 'info');
         
+        console.log('🔄 Загружаем пользователей...');
         const response = await fetch('/admin/users');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
+        console.log('📊 Получены данные пользователей:', data);
+        
+        if (data.users && data.users.length > 0) {
+            console.log('👤 Первый пользователь:', data.users[0]);
+            console.log('📈 Статистика первого пользователя:', {
+                videosCount: data.users[0].videosCount,
+                commentsWritten: data.users[0].commentsWritten,
+                likesGiven: data.users[0].likesGiven,
+                tagsCreated: data.users[0].tagsCreated
+            });
+        }
+        
         displayUsers(data.users);
         
         showNotification('Пользователи загружены', 'success');
     } catch (error) {
-        console.error('Ошибка загрузки пользователей:', error);
+        console.error('❌ Ошибка загрузки пользователей:', error);
         showNotification('Ошибка загрузки пользователей', 'error');
     }
 }
@@ -203,21 +581,41 @@ async function loadUsers() {
 function displayUsers(users) {
     const container = document.getElementById('users-container');
     
+    console.log('🎨 Отображаем пользователей:', users?.length || 0);
+    
     if (!users || users.length === 0) {
         container.innerHTML = '<div class="no-data">Пользователи не найдены</div>';
         return;
     }
     
+    if (users.length > 0) {
+        console.log('👤 Данные первого пользователя для отображения:', {
+            id: users[0].id,
+            display_name: users[0].display_name,
+            videosCount: users[0].videosCount,
+            commentsWritten: users[0].commentsWritten,
+            likesGiven: users[0].likesGiven,
+            tagsCreated: users[0].tagsCreated
+        });
+    }
+    
     container.innerHTML = `
+        <div class="users-table-container">
         <table class="users-table">
             <thead>
                 <tr>
-                    <th>Аватар</th>
-                    <th>Логин</th>
-                    <th>ID</th>
-                    <th>Видео</th>
-                    <th>Регистрация</th>
-                    <th>Действия</th>
+                        <th title="Аватар пользователя">Аватар</th>
+                        <th title="Имя пользователя">Логин</th>
+                        <th title="Уникальный идентификатор">ID</th>
+                        <th title="Количество загруженных видео">Видео</th>
+                        <th title="Дата регистрации">Дата</th>
+                        <th title="Комментарии написанные пользователем">Комм. нап.</th>
+                        <th title="Комментарии полученные к видео пользователя">Комм. пол.</th>
+                        <th title="Лайки поставленные пользователем">Лайки пост.</th>
+                        <th title="Лайки полученные за видео пользователя">Лайки пол.</th>
+                        <th title="Теги созданные пользователем">Теги созд.</th>
+                        <th title="Теги использованные в видео пользователя">Теги исп.</th>
+                        <th title="Действия с пользователем">Действия</th>
                 </tr>
             </thead>
             <tbody>
@@ -235,8 +633,14 @@ function displayUsers(users) {
                         <td>
                             <div class="user-id">${user.id}</div>
                         </td>
-                        <td class="user-stats">${user.videosCount || 0}</td>
+                            <td class="user-stats ${(user.videosCount || 0) === 0 ? 'disabled' : ''}" ${(user.videosCount || 0) === 0 ? `onclick="handleDisabledClick('У пользователя ${user.display_name || 'Пользователь'} нет видео для отображения')"` : `onclick="navigateToUserVideos('${user.id}', '${user.display_name || 'Пользователь'}')"`} title="${(user.videosCount || 0) === 0 ? 'Нет видео для отображения' : 'Показать видео пользователя'}">${user.videosCount || 0}</td>
                         <td class="user-date">${new Date(user.created_at).toLocaleDateString()}</td>
+                            <td class="user-stats user-stats-comments-written ${(user.commentsWritten || 0) === 0 ? 'disabled' : ''}" ${(user.commentsWritten || 0) === 0 ? `onclick="handleDisabledClick('У пользователя ${user.display_name || 'Пользователь'} нет написанных комментариев')"` : `onclick="navigateToUserComments('${user.id}', '${user.display_name || 'Пользователь'}', 'written')"`} title="${(user.commentsWritten || 0) === 0 ? 'Нет написанных комментариев' : 'Показать написанные комментарии'}">${user.commentsWritten || 0}</td>
+                            <td class="user-stats user-stats-comments-received ${(user.commentsReceived || 0) === 0 ? 'disabled' : ''}" ${(user.commentsReceived || 0) === 0 ? `onclick="handleDisabledClick('У пользователя ${user.display_name || 'Пользователь'} нет полученных комментариев')"` : `onclick="navigateToUserComments('${user.id}', '${user.display_name || 'Пользователь'}', 'received')"`} title="${(user.commentsReceived || 0) === 0 ? 'Нет полученных комментариев' : 'Показать полученные комментарии'}">${user.commentsReceived || 0}</td>
+                            <td class="user-stats user-stats-likes-given ${(user.likesGiven || 0) === 0 ? 'disabled' : ''}" ${(user.likesGiven || 0) === 0 ? `onclick="handleDisabledClick('У пользователя ${user.display_name || 'Пользователь'} нет поставленных лайков')"` : `onclick="navigateToUserLikes('${user.id}', '${user.display_name || 'Пользователь'}', 'given')"`} title="${(user.likesGiven || 0) === 0 ? 'Нет поставленных лайков' : 'Показать поставленные лайки'}">${user.likesGiven || 0}</td>
+                            <td class="user-stats user-stats-likes-received ${(user.likesReceived || 0) === 0 ? 'disabled' : ''}" ${(user.likesReceived || 0) === 0 ? `onclick="handleDisabledClick('У пользователя ${user.display_name || 'Пользователь'} нет полученных лайков')"` : `onclick="navigateToUserLikes('${user.id}', '${user.display_name || 'Пользователь'}', 'received')"`} title="${(user.likesReceived || 0) === 0 ? 'Нет полученных лайков' : 'Показать полученные лайки'}">${user.likesReceived || 0}</td>
+                            <td class="user-stats user-stats-tags-created ${(user.tagsCreated || 0) === 0 ? 'disabled' : ''}" ${(user.tagsCreated || 0) === 0 ? `onclick="handleDisabledClick('У пользователя ${user.display_name || 'Пользователь'} нет созданных тегов')"` : `onclick="navigateToUserTags('${user.id}', '${user.display_name || 'Пользователь'}', 'created')"`} title="${(user.tagsCreated || 0) === 0 ? 'Нет созданных тегов' : 'Показать созданные теги'}">${user.tagsCreated || 0}</td>
+                            <td class="user-stats user-stats-tags-used ${(user.tagsUsed || 0) === 0 ? 'disabled' : ''}" ${(user.tagsUsed || 0) === 0 ? `onclick="handleDisabledClick('У пользователя ${user.display_name || 'Пользователь'} нет использованных тегов')"` : `onclick="navigateToUserTags('${user.id}', '${user.display_name || 'Пользователь'}', 'used')"`} title="${(user.tagsUsed || 0) === 0 ? 'Нет использованных тегов' : 'Показать использованные теги'}">${user.tagsUsed || 0}</td>
                         <td class="user-actions-cell">
                             <button class="btn btn-danger btn-small" onclick="deleteUser('${user.id}', '${user.display_name}')">
                                 🗑️
@@ -246,6 +650,7 @@ function displayUsers(users) {
                 `).join('')}
             </tbody>
         </table>
+        </div>
     `;
 }
 
@@ -1272,6 +1677,29 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+/**
+ * Форматирование даты
+ */
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'только что';
+    if (diffMins < 60) return `${diffMins} мин назад`;
+    if (diffHours < 24) return `${diffHours} ч назад`;
+    if (diffDays < 7) return `${diffDays} д назад`;
+
+    return date.toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'short',
+        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+    });
 }
 
 // ==================== СИСТЕМА ====================

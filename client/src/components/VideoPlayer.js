@@ -5,7 +5,7 @@ import { UserService } from '../services/userService';
 import { ServerApi } from '../services/serverApi';
 import './VideoPlayer.css';
 
-const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = false, hasNext = false, authorDisplayName, authorAvatar, onOpenComments, commentsCount = 0 }) => {
+const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = false, hasNext = false, authorDisplayName, authorAvatar, onOpenComments, commentsCount = 0, onCommentsCountChange }) => {
   const videoRef = useRef(null);
   const lastNavRef = useRef(0);
   const navigate = useNavigate();
@@ -18,6 +18,7 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [videoTags, setVideoTags] = useState([]);
+  const [currentCommentsCount, setCurrentCommentsCount] = useState(commentsCount);
   const [volume, setVolume] = useState(() => {
     // Загружаем сохраненную громкость из localStorage
     const savedVolume = localStorage.getItem('videoVolume');
@@ -71,21 +72,35 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
     loadLikeStatus();
   }, [video?.id]);
 
+  // Обновляем счетчик комментариев при изменении пропса
+  useEffect(() => {
+    setCurrentCommentsCount(commentsCount);
+  }, [commentsCount]);
+
 
   const handleClickOutside = (e) => {
-    if (e.target.classList.contains('tiktok-player-overlay')) {
+    // Проверяем, что клик именно по overlay, а не по его дочерним элементам
+    if (e.target === e.currentTarget) {
       onClose();
     }
   };
 
-  const handlePlayPause = () => {
+  const handlePlayPause = async () => {
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
+        setIsPlaying(false);
       } else {
-        videoRef.current.play();
+        try {
+          await videoRef.current.play();
+          setIsPlaying(true);
+        } catch (error) {
+          // Игнорируем ошибки воспроизведения при удалении элемента
+          if (error.name !== 'AbortError') {
+            console.warn('Ошибка воспроизведения видео:', error);
+          }
+        }
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
@@ -95,11 +110,20 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
       const video = videoRef.current;
       video.volume = volume; // Используем сохраненную громкость
       video.muted = volume === 0; // Отключаем звук только если громкость 0
-      video.play().then(() => {
-        setIsPlaying(true);
-      }).catch((error) => {
-        // Автовоспроизведение заблокировано браузером
-      });
+      
+      const playVideo = async () => {
+        try {
+          await video.play();
+          setIsPlaying(true);
+        } catch (error) {
+          // Игнорируем ошибки воспроизведения при удалении элемента или блокировке автовоспроизведения
+          if (error.name !== 'AbortError') {
+            console.warn('Автовоспроизведение заблокировано или ошибка воспроизведения:', error);
+          }
+        }
+      };
+      
+      playVideo();
     }
   }, [video, volume]);
 
@@ -118,6 +142,12 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
       }
     };
     const onKey = (e) => {
+      // Закрытие плеера по Escape
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      
       if (!onPrev && !onNext) return;
       const now = Date.now();
       if (now - lastNavRef.current < 250) return;
@@ -135,7 +165,7 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
       window.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKey);
     };
-  }, [onPrev, onNext]);
+  }, [onPrev, onNext, onClose]);
 
   const handleLike = async () => {
     if (!video?.id || isLiking) return;
@@ -276,6 +306,18 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
     }
   };
 
+  // Функция для обновления счетчика комментариев (вызывается из родительского компонента)
+  const updateCommentsCount = (newCount) => {
+    setCurrentCommentsCount(newCount);
+  };
+
+  // Экспортируем функцию обновления счетчика для использования в родительском компоненте
+  useEffect(() => {
+    if (onCommentsCountChange) {
+      onCommentsCountChange(updateCommentsCount);
+    }
+  }, [onCommentsCountChange]);
+
   const formatPublishedAt = (dt) => {
     try {
       if (!dt) return '';
@@ -305,7 +347,11 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
           </div>
         )}
         {/* Кнопка назад (улучшенная видимость) */}
-        <div className="tiktok-back-button" onClick={onClose}>
+        <div className="tiktok-back-button" onClick={(e) => {
+          e.stopPropagation();
+          console.log('Кнопка назад нажата');
+          onClose();
+        }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
             <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
           </svg>
@@ -369,7 +415,7 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
             <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
               <path d="M21.99 4c0-1.1-.89-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
             </svg>
-            <span className="action-count">{commentsCount}</span>
+            <span className="action-count">{currentCommentsCount}</span>
           </div>
 
           {/* Кнопка поделиться

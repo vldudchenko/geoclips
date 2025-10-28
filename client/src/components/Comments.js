@@ -25,6 +25,11 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
 
       const data = await response.json();
       setComments(data.comments || []);
+      
+      // Обновляем счетчик комментариев если он пришел с сервера
+      if (data.total !== undefined && onCommentsCountChange) {
+        onCommentsCountChange(data.total);
+      }
     } catch (err) {
       console.error('Ошибка загрузки комментариев:', err);
       setError('Не удалось загрузить комментарии');
@@ -88,6 +93,11 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
       // Добавляем новый комментарий в начало списка
       setComments([data.comment, ...comments]);
       setNewComment('');
+      
+      // Обновляем счетчик комментариев если он пришел с сервера
+      if (data.commentsCount !== undefined && onCommentsCountChange) {
+        onCommentsCountChange(data.commentsCount);
+      }
     } catch (err) {
       console.error('Ошибка добавления комментария:', err);
       alert('Не удалось добавить комментарий. Попробуйте позже.');
@@ -114,8 +124,15 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
         throw new Error('Ошибка удаления комментария');
       }
 
+      const data = await response.json();
+
       // Удаляем комментарий из списка
       setComments(comments.filter(c => c.id !== commentId));
+      
+      // Обновляем счетчик комментариев если он пришел с сервера
+      if (data.commentsCount !== undefined && onCommentsCountChange) {
+        onCommentsCountChange(data.commentsCount);
+      }
     } catch (err) {
       console.error('Ошибка удаления комментария:', err);
       alert('Не удалось удалить комментарий');

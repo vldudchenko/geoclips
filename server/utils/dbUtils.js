@@ -15,6 +15,8 @@ const getVideoCountsByUsers = async (userIds) => {
   if (!userIds || userIds.length === 0) return {};
 
   try {
+    logger.info('DB', 'Получаем видео пользователей', { userIds: userIds.slice(0, 3) });
+    
     const { data: videoCounts, error } = await supabase
       .from('videos')
       .select('user_id')
@@ -25,10 +27,15 @@ const getVideoCountsByUsers = async (userIds) => {
       return {};
     }
 
-    return videoCounts?.reduce((acc, video) => {
+    logger.info('DB', 'Найдено видео', { count: videoCounts?.length || 0 });
+
+    const result = videoCounts?.reduce((acc, video) => {
       acc[video.user_id] = (acc[video.user_id] || 0) + 1;
       return acc;
     }, {}) || {};
+
+    logger.info('DB', 'Результат видео по пользователям', result);
+    return result;
   } catch (error) {
     logger.error('DB', 'Ошибка в getVideoCountsByUsers', error);
     return {};
@@ -785,8 +792,332 @@ const deleteUserComments = async (userId) => {
   }
 };
 
+/**
+ * Получить количество комментариев для пользователей
+ * @param {string[]} userIds - массив ID пользователей
+ * @returns {Object} объект с количеством комментариев для каждого пользователя
+ */
+const getCommentsCountsByUsers = async (userIds) => {
+  if (!userIds || userIds.length === 0) return {};
+
+  try {
+    const { data: commentCounts, error } = await supabase
+      .from('comments')
+      .select('user_id')
+      .in('user_id', userIds);
+
+    if (error) {
+      logger.error('DB', 'Ошибка получения счетчиков комментариев', error);
+      return {};
+    }
+
+    return commentCounts?.reduce((acc, comment) => {
+      acc[comment.user_id] = (acc[comment.user_id] || 0) + 1;
+      return acc;
+    }, {}) || {};
+  } catch (error) {
+    logger.error('DB', 'Ошибка в getCommentsCountsByUsers', error);
+    return {};
+  }
+};
+
+/**
+ * Получить количество комментариев написанных пользователями
+ * @param {string[]} userIds - массив ID пользователей
+ * @returns {Object} объект с количеством написанных комментариев для каждого пользователя
+ */
+const getCommentsWrittenByUsers = async (userIds) => {
+  if (!userIds || userIds.length === 0) return {};
+
+  try {
+    logger.info('DB', 'Получаем комментарии пользователей', { userIds: userIds.slice(0, 3) });
+    
+    const { data: commentsWritten, error } = await supabase
+      .from('comments')
+      .select('user_id')
+      .in('user_id', userIds);
+
+    if (error) {
+      logger.error('DB', 'Ошибка получения написанных комментариев', error);
+      return {};
+    }
+
+    logger.info('DB', 'Найдено комментариев', { count: commentsWritten?.length || 0 });
+
+    const result = commentsWritten?.reduce((acc, comment) => {
+      const userId = comment.user_id;
+      acc[userId] = (acc[userId] || 0) + 1;
+      return acc;
+    }, {}) || {};
+
+    logger.info('DB', 'Результат комментариев по пользователям', result);
+    return result;
+  } catch (error) {
+    logger.error('DB', 'Ошибка в getCommentsWrittenByUsers', error);
+    return {};
+  }
+};
+
+/**
+ * Получить количество комментариев полученных пользователями (комментарии к их видео)
+ * @param {string[]} userIds - массив ID пользователей
+ * @returns {Object} объект с количеством полученных комментариев для каждого пользователя
+ */
+const getCommentsReceivedByUsers = async (userIds) => {
+  if (!userIds || userIds.length === 0) return {};
+
+  try {
+    // Получаем видео пользователей
+    const { data: userVideos, error: videosError } = await supabase
+      .from('videos')
+      .select('id, user_id')
+      .in('user_id', userIds);
+
+    if (videosError) {
+      logger.error('DB', 'Ошибка получения видео пользователей', videosError);
+      return {};
+    }
+
+    if (!userVideos || userVideos.length === 0) {
+      return {};
+    }
+
+    const videoIds = userVideos.map(video => video.id);
+
+    // Получаем комментарии к этим видео
+    const { data: videoComments, error: commentsError } = await supabase
+      .from('comments')
+      .select('video_id')
+      .in('video_id', videoIds);
+
+    if (commentsError) {
+      logger.error('DB', 'Ошибка получения комментариев к видео', commentsError);
+      return {};
+    }
+
+    // Создаем мапу video_id -> user_id
+    const videoToUser = {};
+    userVideos.forEach(video => {
+      videoToUser[video.id] = video.user_id;
+    });
+
+    // Подсчитываем комментарии по пользователям
+    return videoComments?.reduce((acc, comment) => {
+      const userId = videoToUser[comment.video_id];
+      if (userId) {
+        acc[userId] = (acc[userId] || 0) + 1;
+      }
+      return acc;
+    }, {}) || {};
+  } catch (error) {
+    logger.error('DB', 'Ошибка в getCommentsReceivedByUsers', error);
+    return {};
+  }
+};
+
+/**
+ * Получить количество лайков для пользователей (сумма лайков их видео)
+ * @param {string[]} userIds - массив ID пользователей
+ * @returns {Object} объект с количеством лайков для каждого пользователя
+ */
+const getLikesCountsByUsers = async (userIds) => {
+  if (!userIds || userIds.length === 0) return {};
+
+  try {
+    const { data: videoLikes, error } = await supabase
+      .from('videos')
+      .select('user_id, likes_count')
+      .in('user_id', userIds);
+
+    if (error) {
+      logger.error('DB', 'Ошибка получения счетчиков лайков', error);
+      return {};
+    }
+
+    return videoLikes?.reduce((acc, video) => {
+      const userId = video.user_id;
+      acc[userId] = (acc[userId] || 0) + (video.likes_count || 0);
+      return acc;
+    }, {}) || {};
+  } catch (error) {
+    logger.error('DB', 'Ошибка в getLikesCountsByUsers', error);
+    return {};
+  }
+};
+
+/**
+ * Получить количество лайков поставленных пользователями
+ * @param {string[]} userIds - массив ID пользователей
+ * @returns {Object} объект с количеством поставленных лайков для каждого пользователя
+ */
+const getLikesGivenByUsers = async (userIds) => {
+  if (!userIds || userIds.length === 0) return {};
+
+  try {
+    logger.info('DB', 'Получаем лайки пользователей', { userIds: userIds.slice(0, 3) });
+    
+    const { data: likesGiven, error } = await supabase
+      .from('likes')
+      .select('user_id')
+      .in('user_id', userIds);
+
+    if (error) {
+      logger.error('DB', 'Ошибка получения поставленных лайков', error);
+      return {};
+    }
+
+    logger.info('DB', 'Найдено лайков', { count: likesGiven?.length || 0 });
+
+    const result = likesGiven?.reduce((acc, like) => {
+      const userId = like.user_id;
+      acc[userId] = (acc[userId] || 0) + 1;
+      return acc;
+    }, {}) || {};
+
+    logger.info('DB', 'Результат лайков по пользователям', result);
+    return result;
+  } catch (error) {
+    logger.error('DB', 'Ошибка в getLikesGivenByUsers', error);
+    return {};
+  }
+};
+
+/**
+ * Получить количество лайков полученных пользователями (лайки их видео)
+ * @param {string[]} userIds - массив ID пользователей
+ * @returns {Object} объект с количеством полученных лайков для каждого пользователя
+ */
+const getLikesReceivedByUsers = async (userIds) => {
+  if (!userIds || userIds.length === 0) return {};
+
+  try {
+    const { data: videoLikes, error } = await supabase
+      .from('videos')
+      .select('user_id, likes_count')
+      .in('user_id', userIds);
+
+    if (error) {
+      logger.error('DB', 'Ошибка получения полученных лайков', error);
+      return {};
+    }
+
+    return videoLikes?.reduce((acc, video) => {
+      const userId = video.user_id;
+      acc[userId] = (acc[userId] || 0) + (video.likes_count || 0);
+      return acc;
+    }, {}) || {};
+  } catch (error) {
+    logger.error('DB', 'Ошибка в getLikesReceivedByUsers', error);
+    return {};
+  }
+};
+
+/**
+ * Получить количество созданных тегов для пользователей
+ * @param {string[]} userIds - массив ID пользователей
+ * @returns {Object} объект с количеством созданных тегов для каждого пользователя
+ */
+const getTagsCountsByUsers = async (userIds) => {
+  if (!userIds || userIds.length === 0) return {};
+
+  try {
+    logger.info('DB', 'Получаем теги пользователей', { userIds: userIds.slice(0, 3) });
+    
+    const { data: userTags, error } = await supabase
+      .from('tags')
+      .select('user_id')
+      .in('user_id', userIds);
+
+    if (error) {
+      logger.error('DB', 'Ошибка получения созданных тегов пользователей', error);
+      return {};
+    }
+
+    logger.info('DB', 'Найдено тегов', { count: userTags?.length || 0 });
+
+    const result = userTags?.reduce((acc, tag) => {
+      const userId = tag.user_id;
+      if (userId) {
+        acc[userId] = (acc[userId] || 0) + 1;
+      }
+      return acc;
+    }, {}) || {};
+
+    logger.info('DB', 'Результат тегов по пользователям', result);
+    return result;
+  } catch (error) {
+    logger.error('DB', 'Ошибка в getTagsCountsByUsers', error);
+    return {};
+  }
+};
+
+/**
+ * Получить количество использованных тегов для пользователей (теги в их видео)
+ * @param {string[]} userIds - массив ID пользователей
+ * @returns {Object} объект с количеством использованных тегов для каждого пользователя
+ */
+const getTagsUsedByUsers = async (userIds) => {
+  if (!userIds || userIds.length === 0) return {};
+
+  try {
+    // Получаем видео пользователей
+    const { data: userVideos, error: videosError } = await supabase
+      .from('videos')
+      .select('id, user_id')
+      .in('user_id', userIds);
+
+    if (videosError) {
+      logger.error('DB', 'Ошибка получения видео пользователей', videosError);
+      return {};
+    }
+
+    if (!userVideos || userVideos.length === 0) {
+      return {};
+    }
+
+    const videoIds = userVideos.map(video => video.id);
+
+    // Получаем теги для этих видео
+    const { data: videoTags, error: tagsError } = await supabase
+      .from('video_tags')
+      .select('video_id')
+      .in('video_id', videoIds);
+
+    if (tagsError) {
+      logger.error('DB', 'Ошибка получения тегов видео', tagsError);
+      return {};
+    }
+
+    // Создаем мапу video_id -> user_id
+    const videoToUser = {};
+    userVideos.forEach(video => {
+      videoToUser[video.id] = video.user_id;
+    });
+
+    // Подсчитываем теги по пользователям
+    return videoTags?.reduce((acc, videoTag) => {
+      const userId = videoToUser[videoTag.video_id];
+      if (userId) {
+        acc[userId] = (acc[userId] || 0) + 1;
+      }
+      return acc;
+    }, {}) || {};
+  } catch (error) {
+    logger.error('DB', 'Ошибка в getTagsUsedByUsers', error);
+    return {};
+  }
+};
+
 module.exports = {
   getVideoCountsByUsers,
+  getCommentsCountsByUsers,
+  getCommentsWrittenByUsers,
+  getCommentsReceivedByUsers,
+  getLikesCountsByUsers,
+  getLikesGivenByUsers,
+  getLikesReceivedByUsers,
+  getTagsCountsByUsers,
+  getTagsUsedByUsers,
   getTagCountsByVideos,
   deleteVideosWithTagCleanup,
   updateTagCounters,

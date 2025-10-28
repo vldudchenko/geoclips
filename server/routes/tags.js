@@ -17,7 +17,7 @@ console.log('Tags routes registered: GET /, POST /, DELETE /bulk, DELETE /:id, P
  * Получение списка тегов
  */
 router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
-  const { search, sortBy = 'name', order = 'asc', limit, offset } = req.query;
+  const { search, userId, sortBy = 'name', order = 'asc', limit, offset } = req.query;
   
   let queryBuilder = supabase
     .from('tags')
@@ -26,6 +26,11 @@ router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   // Применяем поиск, если указан
   if (search && search.trim()) {
     queryBuilder = queryBuilder.ilike('name', `%${search.trim()}%`);
+  }
+
+  // Фильтрация по пользователю
+  if (userId) {
+    queryBuilder = queryBuilder.eq('user_id', userId);
   }
 
   // Сортировка

@@ -20,6 +20,7 @@ const VideoPage = ({ currentUser }) => {
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
+  const [updateCommentsCountRef, setUpdateCommentsCountRef] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -48,6 +49,9 @@ const VideoPage = ({ currentUser }) => {
         const idx = videos.findIndex(v => v.id === byId.id);
         setCurrentIndex(idx);
 
+        // Устанавливаем счетчик комментариев из загруженного видео
+        setCommentsCount(byId.comments_count || 0);
+
         // Регистрируем просмотр (один раз при загрузке видео)
         try { await VideoService.recordView(byId.id); } catch {}
       } catch (error) {
@@ -64,6 +68,7 @@ const VideoPage = ({ currentUser }) => {
   }, [videoId, userDisplayName]);
 
   const handleClose = () => {
+    console.log('handleClose вызвана');
     // Возвращаемся на предыдущую страницу или на главную
     if (window.history.length > 1) {
       navigate(-1);
@@ -79,6 +84,8 @@ const VideoPage = ({ currentUser }) => {
     setCurrentIndex(nextIdx);
     const nextVideo = userVideos[nextIdx];
     setVideo(nextVideo);
+    // Обновляем счетчик комментариев для нового видео
+    setCommentsCount(nextVideo.comments_count || 0);
     navigate(`/video/${userDisplayName}/${nextVideo.id}`, { replace: true });
   };
 
@@ -89,6 +96,8 @@ const VideoPage = ({ currentUser }) => {
     setCurrentIndex(prevIdx);
     const prevVideo = userVideos[prevIdx];
     setVideo(prevVideo);
+    // Обновляем счетчик комментариев для нового видео
+    setCommentsCount(prevVideo.comments_count || 0);
     navigate(`/video/${userDisplayName}/${prevVideo.id}`, { replace: true });
   };
 
@@ -102,6 +111,14 @@ const VideoPage = ({ currentUser }) => {
 
   const handleCommentsCountChange = (count) => {
     setCommentsCount(count);
+    // Обновляем счетчик в плеере, если функция доступна
+    if (updateCommentsCountRef) {
+      updateCommentsCountRef(count);
+    }
+  };
+
+  const handleCommentsCountRefChange = (updateFunction) => {
+    setUpdateCommentsCountRef(() => updateFunction);
   };
 
   // Обработка свайпа для закрытия модального окна
@@ -158,6 +175,7 @@ const VideoPage = ({ currentUser }) => {
           authorAvatar={author.avatar}
           onOpenComments={handleOpenComments}
           commentsCount={commentsCount}
+          onCommentsCountChange={handleCommentsCountRefChange}
         />
       </div>
 

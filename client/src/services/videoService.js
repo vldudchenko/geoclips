@@ -17,6 +17,7 @@ export class VideoService {
       longitude,
       likes_count,
       views_count,
+      comments_count,
       created_at,
       users (
         id,
@@ -245,7 +246,7 @@ export class VideoService {
       const safeFileName = `${videoId}.${fileExtension}`;
       const fileName = `${userId}/${videoId}/${safeFileName}`;
       
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('geoclips-videos')
         .upload(fileName, file, {
           cacheControl: '3600',
