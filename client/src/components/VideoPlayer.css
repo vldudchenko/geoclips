@@ -303,8 +303,8 @@
 /* Адаптивность для больших экранов */
 @media (min-width: 768px) {
   .tiktok-player-container {
-    max-width: 375px;
-    max-height: 812px;
+    max-width: 450px;
+    max-height: 92vh; /* Увеличена высота - почти до краев экрана */
     border-radius: 20px;
     overflow: hidden;
     box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
@@ -312,6 +312,21 @@
   
   .tiktok-player-overlay {
     background: rgba(0, 0, 0, 0.9);
+  }
+}
+
+/* Мобильная версия - плеер на весь экран */
+@media (max-width: 767px) {
+  .tiktok-player-container {
+    max-width: 100vw;
+    max-height: 100vh;
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+  }
+  
+  .tiktok-player-overlay {
+    background: #000;
   }
 }
 

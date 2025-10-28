@@ -168,7 +168,7 @@ const VideoPage = ({ currentUser }) => {
     <div className="video-page">
       {/* Видеоплеер */}
       {isPlayerVisible && (
-        <div className="video-page-content">
+        <div className={`video-page-content ${showCommentsModal ? 'with-comments' : ''}`}>
           <VideoPlayer 
             video={video} 
             currentUser={currentUser}
