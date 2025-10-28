@@ -396,10 +396,18 @@ router.get('/profile/:identifier', async (req, res) => {
       tags: video.video_tags?.map(vt => vt.tags).filter(Boolean) || []
     })) || [];
     
+    // Вычисляем статистику пользователя
+    const stats = {
+      videosCount: processedVideos.length,
+      totalLikes: processedVideos.reduce((sum, video) => sum + (video.likes_count || 0), 0),
+      totalViews: processedVideos.reduce((sum, video) => sum + (video.views_count || 0), 0)
+    };
+    
     res.json({
       success: true,
       user: userData,
       videos: processedVideos,
+      stats: stats,
       isCurrentUserProfile
     });
 
