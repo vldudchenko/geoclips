@@ -21,6 +21,7 @@ const VideoPage = ({ currentUser }) => {
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
   const [updateCommentsCountRef, setUpdateCommentsCountRef] = useState(null);
+  const [isPlayerVisible, setIsPlayerVisible] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
@@ -69,12 +70,16 @@ const VideoPage = ({ currentUser }) => {
 
   const handleClose = () => {
     console.log('handleClose вызвана');
-    // Возвращаемся на предыдущую страницу или на главную
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/');
-    }
+    // Сначала скрываем плеер для мгновенного визуального эффекта
+    setIsPlayerVisible(false);
+    // Затем выполняем навигацию
+    setTimeout(() => {
+      if (window.history.length > 1) {
+        navigate(-1);
+      } else {
+        navigate('/');
+      }
+    }, 0);
   };
 
   const goNext = () => {
@@ -162,22 +167,24 @@ const VideoPage = ({ currentUser }) => {
   return (
     <div className="video-page">
       {/* Видеоплеер */}
-      <div className="video-page-content">
-        <VideoPlayer 
-          video={video} 
-          currentUser={currentUser}
-          onClose={handleClose}
-          onPrev={userVideos.length > 1 ? goPrev : undefined}
-          onNext={userVideos.length > 1 ? goNext : undefined}
-          hasPrev={userVideos.length > 1}
-          hasNext={userVideos.length > 1}
-          authorDisplayName={author.display_name}
-          authorAvatar={author.avatar}
-          onOpenComments={handleOpenComments}
-          commentsCount={commentsCount}
-          onCommentsCountChange={handleCommentsCountRefChange}
-        />
-      </div>
+      {isPlayerVisible && (
+        <div className="video-page-content">
+          <VideoPlayer 
+            video={video} 
+            currentUser={currentUser}
+            onClose={handleClose}
+            onPrev={userVideos.length > 1 ? goPrev : undefined}
+            onNext={userVideos.length > 1 ? goNext : undefined}
+            hasPrev={userVideos.length > 1}
+            hasNext={userVideos.length > 1}
+            authorDisplayName={author.display_name}
+            authorAvatar={author.avatar}
+            onOpenComments={handleOpenComments}
+            commentsCount={commentsCount}
+            onCommentsCountChange={handleCommentsCountRefChange}
+          />
+        </div>
+      )}
 
       {/* Модальное окно комментариев (как в TikTok) */}
       {showCommentsModal && (
