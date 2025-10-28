@@ -181,7 +181,7 @@ router.delete('/:videoId', requireAuth, apiResponse.asyncHandler(async (req, res
 router.get('/:videoId/tags', apiResponse.asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
-    const tags = await dbUtils.getVideoTags(videoId);
+  const tags = await dbUtils.getVideoTags(videoId);
 
   apiResponse.sendSuccess(res, { tags });
 }));
@@ -511,7 +511,7 @@ router.post('/admin/fix-views-counters', requireAdmin, apiResponse.asyncHandler(
 /**
  * Обновление тегов видео (для администратора)
  */
-router.put('/admin/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+router.put('/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { tagIds, tagNames } = req.body;
   
@@ -572,7 +572,8 @@ router.put('/admin/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req,
       
       const videoTags = tagIds.map(tagId => ({
         video_id: id,
-        tag_id: tagId
+        tag_id: tagId,
+        assigned_by: req.user?.dbUser?.id || null
       }));
       
       logger.info('VIDEO', 'Данные для вставки', { videoTags });

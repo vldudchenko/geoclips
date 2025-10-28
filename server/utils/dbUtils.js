@@ -541,7 +541,7 @@ const assignTagsToVideo = async (videoId, tagNames, userId = null) => {
         // Привязываем тег к видео
         const { error: insertLinkError } = await supabase
           .from('video_tags')
-          .insert([{ video_id: videoId, tag_id: tag.id }]);
+          .insert([{ video_id: videoId, tag_id: tag.id, assigned_by: userId }]);
 
         if (insertLinkError) {
           logger.error('DB', 'Ошибка привязки тега к видео', { videoId, tagId: tag.id, error: insertLinkError });
@@ -600,7 +600,12 @@ const getVideoTags = async (videoId) => {
   try {
     const { data: videoTags, error } = await supabase
       .from('video_tags')
-      .select('tag_id, tags(id, name, usage_count, user_id)')
+      .select(`
+        tag_id, 
+        assigned_by,
+        tags(id, name, usage_count, user_id),
+        assigned_user:assigned_by(display_name)
+      `)
       .eq('video_id', videoId);
 
     if (error) {
@@ -608,8 +613,33 @@ const getVideoTags = async (videoId) => {
       return [];
     }
 
-    const tags = (videoTags || []).map(vt => vt.tags).filter(Boolean);
-    logger.info('DB', 'Получены теги видео');
+    // Получаем информацию о создателях тегов
+    const tagIds = [...new Set(videoTags?.map(vt => vt.tags?.id).filter(Boolean))];
+    let creatorsMap = {};
+    
+    if (tagIds.length > 0) {
+      const { data: creators, error: creatorsError } = await supabase
+        .from('users')
+        .select('id, display_name')
+        .in('id', tagIds.map(tagId => {
+          const tag = videoTags.find(vt => vt.tags?.id === tagId);
+          return tag?.tags?.user_id;
+        }).filter(Boolean));
+      
+      if (!creatorsError && creators) {
+        creatorsMap = creators.reduce((map, creator) => {
+          map[creator.id] = creator.display_name;
+          return map;
+        }, {});
+      }
+    }
+
+    const tags = (videoTags || []).map(vt => ({
+      ...vt.tags,
+      assigned_by: vt.assigned_by,
+      assigned_by_name: vt.assigned_user?.display_name || 'Система',
+      creator_name: vt.tags?.user_id ? creatorsMap[vt.tags.user_id] || 'Неизвестно' : 'Система'
+    })).filter(tag => tag.id);
 
     return tags;
   } catch (error) {

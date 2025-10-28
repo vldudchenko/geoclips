@@ -20,22 +20,8 @@
 
         <!-- Вкладка: Пользователи -->
         <div id="tab-users" class="tab-content active">
-            <div class="section">                
-                <div class="search-filter-panel">
-                    <input type="text" id="users-search" placeholder="Поиск пользователей..." class="search-input">
-                    <select id="users-sort" class="filter-select">
-                        <option value="created_at">По дате регистрации</option>
-                        <option value="display_name">По имени</option>
-                        <option value="yandex_id">По Yandex ID</option>
-                    </select>
-                    <select id="users-order" class="filter-select">
-                        <option value="desc">По убыванию</option>
-                        <option value="asc">По возрастанию</option>
-                    </select>
-                    <button class="btn" onclick="searchUsers()">🔍 Поиск</button>
-                    <button class="btn btn-secondary" onclick="loadUsers()">🔄 Сбросить</button>
-                </div>
-
+            <div class="section">              
+                
                 <div class="export-panel">
                     <button class="btn btn-secondary" onclick="exportData('users', 'csv')">📥 Экспорт CSV</button>
                     <button class="btn btn-secondary" onclick="exportData('users', 'json')">📥 Экспорт JSON</button>
@@ -52,23 +38,6 @@
         <!-- Вкладка: Видео -->
         <div id="tab-videos" class="tab-content">
             <div class="section">                
-                <div class="search-filter-panel">
-                    <input type="text" id="videos-search" placeholder="Поиск видео..." class="search-input">
-                    <input type="number" id="videos-min-views" placeholder="Мин. просмотры" class="filter-input">
-                    <input type="number" id="videos-min-likes" placeholder="Мин. лайки" class="filter-input">
-                    <select id="videos-sort" class="filter-select">
-                        <option value="created_at">По дате создания</option>
-                        <option value="views_count">По просмотрам</option>
-                        <option value="likes_count">По лайкам</option>
-                    </select>
-                    <select id="videos-order" class="filter-select">
-                        <option value="desc">По убыванию</option>
-                        <option value="asc">По возрастанию</option>
-                    </select>
-                    <button class="btn" onclick="searchVideos()">🔍 Поиск</button>
-                    <button class="btn btn-secondary" onclick="loadVideos()">🔄 Сбросить</button>
-                </div>
-
                 <div class="export-panel">
                     <button class="btn btn-secondary" onclick="exportData('videos', 'csv')">📥 Экспорт CSV</button>
                     <button class="btn btn-secondary" onclick="exportData('videos', 'json')">📥 Экспорт JSON</button>

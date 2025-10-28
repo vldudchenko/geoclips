@@ -280,15 +280,49 @@ async function loadUserTags(userId, userName, type) {
         const params = new URLSearchParams({
             userId: userId,
             sortBy: 'name',
-            order: 'asc',
-            limit: ITEMS_PER_PAGE,
-            offset: 0
+            order: 'asc'
         });
         
         const response = await fetch(`/admin/tags?${params}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
+        
+        // Фильтруем теги в зависимости от типа
+        let filteredTags = data.tags || [];
+        if (type === 'created') {
+            // Показываем только теги, созданные пользователем
+            filteredTags = filteredTags.filter(tag => tag.user_id === userId);
+        } else if (type === 'used') {
+            // Показываем теги, которые были присвоены к видео пользователя
+            try {
+                const videosResponse = await fetch(`/admin/videos/admin/search?userId=${userId}&limit=1000`, { credentials: 'include' });
+                if (videosResponse.ok) {
+                    const videosData = await videosResponse.json();
+                    const videoIds = videosData.data?.map(video => video.id) || [];
+                    
+                    if (videoIds.length > 0) {
+                        // Получаем все теги, которые были присвоены к видео пользователя
+                        const usedTagsResponse = await fetch(`/admin/tags`, { credentials: 'include' });
+                        if (usedTagsResponse.ok) {
+                            const allTagsData = await usedTagsResponse.json();
+                            const allTags = allTagsData.tags || [];
+                            
+                            // Фильтруем теги, которые были присвоены к видео пользователя
+                            // Для этого нужно проверить, есть ли связь между тегом и видео пользователя
+                            // Пока что показываем все теги пользователя
+                            filteredTags = allTags.filter(tag => tag.user_id === userId);
+                        }
+                    } else {
+                        filteredTags = [];
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка получения видео пользователя:', error);
+                // Fallback: показываем все теги пользователя
+                filteredTags = filteredTags.filter(tag => tag.user_id === userId);
+            }
+        }
         
         // Обновляем заголовок для показа фильтра
         const tagsContainer = document.getElementById('tags-container');
@@ -300,19 +334,20 @@ async function loadUserTags(userId, userName, type) {
             
             const filterHeader = document.createElement('div');
             filterHeader.className = 'filter-header';
+            const typeText = type === 'created' ? 'созданные' : 'использованные';
             filterHeader.innerHTML = `
                 <div class="filter-info">
                     <span class="filter-label">Фильтр:</span>
-                    <span class="filter-value">Теги пользователя "${userName}"</span>
+                    <span class="filter-value">${typeText} теги пользователя "${userName}"</span>
                     <button class="btn btn-secondary btn-small" onclick="clearTagsFilter()">Сбросить фильтр</button>
                 </div>
             `;
             tagsContainer.insertBefore(filterHeader, tagsContainer.firstChild);
         }
         
-        displayTags(data.tags);
+        displayTags(filteredTags);
         
-        showNotification(`Найдено тегов: ${data.tags?.length || 0}`, 'success');
+        showNotification(`Найдено тегов: ${filteredTags.length}`, 'success');
     } catch (error) {
         console.error('Ошибка загрузки тегов пользователя:', error);
         showNotification('Ошибка загрузки тегов пользователя', 'error');
@@ -747,15 +782,12 @@ function displayVideos(videos) {
                                 'Не указаны'
                             }
                         </td>
-                        <td class="video-tags-cell">
-                            <div class="video-tags" id="video-tags-${video.id}" onclick="showVideoTags('${video.id}', '${video.description || 'Без описания'}')">
+                        <td class="video-tags-cell" onclick="openTagsModal('${video.id}', '${video.description || 'Без описания'}', '${video.users?.display_name || 'Неизвестно'}')">
+                            <div class="video-tags" id="video-tags-${video.id}" >
                                 <div class="loading-tags">Загрузка...</div>
                             </div>
                         </td>
                         <td class="video-actions-cell">
-                            <button class="btn btn-tags btn-small" onclick="openTagsModal('${video.id}', '${video.description || 'Без описания'}', '${video.users?.display_name || 'Неизвестно'}')">
-                                🏷️
-                            </button>
                             <button class="btn btn-danger btn-small" onclick="deleteVideo('${video.id}')">
                                 🗑️
                             </button>
@@ -789,7 +821,7 @@ async function loadVideoTags(videoId) {
                 tagsContainer.innerHTML = '<span class="no-tags">Нет тегов</span>';
             } else {
                 tagsContainer.innerHTML = tags.map(tag => 
-                    `<span class="video-tag">${tag.name}</span>`
+                    `<span class="video-tag" title="Создатель: ${tag.creator_name || 'Неизвестно'}, Присвоил: ${tag.assigned_by_name || 'Система'}">${tag.name}</span>`
                 ).join('');
             }
         }
@@ -1137,7 +1169,7 @@ function displayTags(tags) {
                         </td>
                         <td class="tag-usage">${tag.usage_count || 0}</td>
                         <td>
-                            <div class="tag-creator">${tag.creator_name || 'Система'}</div>
+                            <div class="tag-creator">${tag.creator_name || 'Неизвестно'}</div>
                         </td>
                         <td class="tag-date">${new Date(tag.created_at).toLocaleDateString()}</td>
                         <td class="tag-actions-cell">
@@ -1308,7 +1340,7 @@ function createTagsModal() {
                 <div class="tags-modal-body">
                     <div class="video-info">
                         <h4>${currentVideoInfo.description}</h4>
-                        <p>Автор: ${currentVideoInfo.author}</p>
+                        <p>Автор: ${currentVideoInfo.author}</p>                
                     </div>
                     
                     <div class="tags-search">
@@ -1357,11 +1389,21 @@ function renderTagsList() {
     
     return filteredTags.map(tag => {
         const isSelected = selectedTagsForVideo.some(selectedTag => selectedTag.id === tag.id);
+        const selectedTagInfo = selectedTagsForVideo.find(selectedTag => selectedTag.id === tag.id);
+        
         return `
             <div class="tag-item ${isSelected ? 'selected' : ''}" data-tag-id="${tag.id}">
                 <div class="tag-item-info">
                     <div class="tag-item-name">${tag.name}</div>
                     <div class="tag-item-usage">Использований: ${tag.usage_count || 0}</div>
+                    <div class="tag-item-creator">
+                        <strong>Создатель:</strong> ${tag.creator_name || 'Неизвестно'}
+                    </div>
+                    ${isSelected && selectedTagInfo?.assigned_by_name ? `
+                        <div class="tag-item-assigned">
+                            <strong>Присвоил:</strong> ${selectedTagInfo.assigned_by_name}
+                        </div>
+                    ` : ''}
                 </div>
                 <input type="checkbox" class="tag-item-checkbox" ${isSelected ? 'checked' : ''} 
                        onchange="toggleTagSelection('${tag.id}')">
@@ -1891,79 +1933,6 @@ async function showVideoLikes(videoId, videoDescription) {
     } catch (error) {
         console.error('Ошибка загрузки лайков:', error);
         showNotification('Ошибка загрузки лайков', 'error');
-    }
-}
-
-/**
- * Показать теги видео
- */
-async function showVideoTags(videoId, videoDescription) {
-    try {
-        showNotification('Загрузка тегов...', 'info');
-        
-        const response = await fetch(`/admin/videos/${videoId}/tags`, { credentials: 'include' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const data = await response.json();
-        const tags = data.tags || [];
-        
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>🏷️ Теги видео: ${videoDescription}</h3>
-                    <button class="modal-close" onclick="closeModal()">&times;</button>
-                </div>
-                <div class="modal-body">
-                    ${tags.length > 0 ? `
-                        <div class="tags-list">
-                            ${tags.map(tag => `
-                                <div class="tag-item">
-                                    <div class="tag-item-info">
-                                        <div class="tag-item-name">${tag.name}</div>
-                                        <div class="tag-item-usage">Использований: ${tag.usage_count || 0}</div>
-                                        <div class="tag-item-creator">
-                                            <strong>Создатель:</strong> 
-                                            ${tag.creator ? `
-                                                <span class="creator-info">
-                                                    ${tag.creator.avatar_url ? 
-                                                        `<img src="${tag.creator.avatar_url}" alt="${tag.creator.display_name}" class="user-avatar-small">` : 
-                                                        `<div class="user-avatar-placeholder">${(tag.creator.display_name || 'U').charAt(0).toUpperCase()}</div>`
-                                                    }
-                                                    ${tag.creator.display_name || 'Неизвестно'}
-                                                </span>
-                                            ` : 'Система'}
-                                        </div>
-                                        <div class="tag-item-assigned">
-                                            <strong>Присвоен:</strong> 
-                                            <span class="assigned-info">
-                                                ${tag.assigned_by || 'Система'} 
-                                                <span class="assigned-date">(${new Date(tag.assigned_at).toLocaleDateString()})</span>
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : '<div class="no-data">Тегов пока нет</div>'}
-                </div>
-            </div>
-        `;
-        
-        // Закрытие при клике вне модального окна
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeModal();
-            }
-        });
-        
-        document.body.appendChild(modal);
-        showNotification(`Загружено ${tags.length} тегов`, 'success');
-        
-    } catch (error) {
-        console.error('Ошибка загрузки тегов:', error);
-        showNotification('Ошибка загрузки тегов', 'error');
     }
 }
 
