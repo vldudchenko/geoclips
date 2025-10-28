@@ -7,6 +7,7 @@ import { createCircleImageUrl } from '../utils/yandexUtils';
 import { calculateDistance } from '../utils/geoUtils';
 import VideoPlayer from './VideoPlayer';
 import logger from '../utils/logger';
+import { API_BASE_URL } from '../utils/constants';
 
 const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigateProfile, isAuthenticated, initialEditMode = false }) => {
   const navigate = useNavigate();
@@ -513,60 +514,94 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
   }, [ymaps, videosLoaded, loadVideosInView]);
 
 
+  // Обработчик входа через Яндекс
+  const handleYandexLogin = () => {
+    const authUrl = API_BASE_URL ? `${API_BASE_URL}/auth/yandex` : 'http://localhost:5000/auth/yandex';
+    window.location.href = authUrl;
+  };
+
+  // Обработчик кнопки "Загрузить видео"
+  const handleUploadVideo = () => {
+    if (!isAuthenticated) {
+      alert('Для загрузки видео необходимо авторизоваться');
+      return;
+    }
+    
+    const newEditMode = !isEditMode;
+    setIsEditMode(newEditMode);
+    
+    if (!newEditMode) {
+      if (placemarkRef.current && mapInstanceRef.current) {
+        const mapInstance = mapInstanceRef.current;
+        if (mapInstance && mapInstance.geoObjects) {
+          mapInstance.geoObjects.remove(placemarkRef.current);
+        }
+        placemarkRef.current = null;
+      }
+      
+      if (videos.length > 0) {
+        setTimeout(() => {
+          addVideoMarkersToMap(videos);
+        }, 100);
+      }
+    }
+  };
+
   return (
     <>
+      {/* Navigation Bar */}
+      <div className="navigation-bar">
+        <div className="navigation-bar-logo">
+          🌍 GeoClips
+        </div>
+        
+        <div className="navigation-bar-buttons">
+          {!isAuthenticated ? (
+            // Кнопка входа для неавторизованных пользователей
+            <button
+              onClick={handleYandexLogin}
+              className="nav-button yandex-login"
+              title="Войти через Яндекс"
+            >
+              <span>Я</span>
+              <span>Войти через Яндекс</span>
+            </button>
+          ) : (
+            // Кнопки для авторизованных пользователей
+            <>
+              <button
+                onClick={onNavigateProfile}
+                className="nav-button"
+                title="Профиль"
+              >
+                <span>👤</span>
+                <span>Профиль</span>
+              </button>
+              
+              <button
+                onClick={handleUploadVideo}
+                className={`nav-button upload-video ${isEditMode ? 'active' : ''}`}
+                title={isEditMode ? 'Завершить редактирование' : 'Загрузить видео'}
+              >
+                <span>{isEditMode ? '✋' : '📤'}</span>
+                <span>{isEditMode ? 'Отмена' : 'Загрузить видео'}</span>
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      
       <div
         className="map"
         ref={mapRef}
         style={{ width: '100%', height: '100%' }}
       />
       
-      <div className="map-controls">
-        {/* Кнопка профиля */}
-        <button
-          onClick={onNavigateProfile}
-          className="round-button profile-button"
-          title="Профиль"
-        >
-          👤
-        </button>
-        
-        {/* Кнопка редактирования - только для авторизованных пользователей */}
-        {isAuthenticated && (
-          <button
-            onClick={() => {
-              const newEditMode = !isEditMode;
-              setIsEditMode(newEditMode);
-              
-              if (!newEditMode) {
-                if (placemarkRef.current && mapInstanceRef.current) {
-                  const mapInstance = mapInstanceRef.current;
-                  if (mapInstance && mapInstance.geoObjects) {
-                    mapInstance.geoObjects.remove(placemarkRef.current);
-                  }
-                  placemarkRef.current = null;
-                }
-                
-                if (videos.length > 0) {
-                  setTimeout(() => {
-                    addVideoMarkersToMap(videos);
-                  }, 100);
-                }
-              }
-            }}
-            className={`round-button edit-mode-button ${isEditMode ? 'active' : ''}`}
-            title={isEditMode ? 'Завершить редактирование' : 'Добавить метку'}
-          >
-            {isEditMode ? '✋' : '📍'}
-          </button>
-        )}
-        
-        {isEditMode && (
-          <div className="edit-mode-hint">
-            Кликните на карту для создания метки
-          </div>
-        )}
-      </div>
+      {isEditMode && (
+        <div className="edit-mode-hint">
+          Кликните на карту для создания метки
+        </div>
+      )}
       
       {isLoadingVideos && (
         <div className="video-loading" style={{

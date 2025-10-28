@@ -1143,6 +1143,142 @@ code {
   background: #0056b3;
 }
 
+/* Navigation Bar */
+.navigation-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(22, 33, 62, 0.95) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  transition: all 0.3s ease;
+}
+
+.navigation-bar-logo {
+  font-size: 24px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.navigation-bar-buttons {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.nav-button {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-button:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.35) 0%, rgba(118, 75, 162, 0.35) 100%);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.nav-button:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.nav-button.yandex-login {
+  background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.nav-button.yandex-login:hover {
+  background: linear-gradient(135deg, #ff3333 0%, #dd0000 100%);
+  box-shadow: 0 6px 20px rgba(255, 0, 0, 0.5);
+}
+
+.nav-button.upload-video {
+  background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.nav-button.upload-video:hover {
+  background: linear-gradient(135deg, #34ce57 0%, #28a745 100%);
+  box-shadow: 0 6px 20px rgba(40, 167, 69, 0.5);
+}
+
+.nav-button.upload-video.active {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.nav-button.upload-video.active:hover {
+  background: linear-gradient(135deg, #e4606d 0%, #dc3545 100%);
+  box-shadow: 0 6px 20px rgba(220, 53, 69, 0.5);
+}
+
+/* Адаптивность Navigation Bar для мобильных */
+@media (max-width: 768px) {
+  .navigation-bar {
+    height: 60px;
+    padding: 0 16px;
+  }
+  
+  .navigation-bar-logo {
+    font-size: 20px;
+  }
+  
+  .nav-button {
+    padding: 10px 16px;
+    font-size: 13px;
+    gap: 6px;
+  }
+  
+  .navigation-bar-buttons {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .navigation-bar {
+    height: 56px;
+    padding: 0 12px;
+  }
+  
+  .navigation-bar-logo {
+    font-size: 18px;
+  }
+  
+  .nav-button {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}
+
 /* Стили для кнопок управления картой */
 .map-controls {
   position: absolute;
@@ -1240,30 +1376,33 @@ code {
 }
 
 .edit-mode-hint {
-  position: absolute;
-  top: 120px;
-  background: rgba(255, 255, 255, 0.1);
+  position: fixed;
+  top: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(40, 167, 69, 0.15);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  /* color: #fff; */
-  padding: 10px 16px;
+  color: #fff;
+  padding: 12px 24px;
   border-radius: 16px;
-  font-size: 13px;
-  font-weight: 500;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.2);
-  animation: fadeIn 0.3s ease-out;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid rgba(40, 167, 69, 0.3);
+  box-shadow: 0 4px 20px rgba(40, 167, 69, 0.3);
+  z-index: 9999;
+  animation: fadeInCenter 0.3s ease-out;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-@keyframes fadeIn {
+@keyframes fadeInCenter {
   from {
     opacity: 0;
-    transform: translateX(-10px);
+    transform: translateX(-50%) translateY(-10px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(-50%) translateY(0);
   }
 }
 
@@ -1580,9 +1719,9 @@ code {
   }
   
   .edit-mode-hint {
-    top: 110px;
-    padding: 8px 12px;
-    font-size: 12px;
+    top: 80px;
+    padding: 10px 16px;
+    font-size: 13px;
     border-radius: 12px;
   }
 }

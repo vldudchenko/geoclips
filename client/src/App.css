@@ -22,14 +22,28 @@ body, html {
 /* Контейнер карты */
 .map-container {
   position: absolute;
-  top: 0;
+  top: 70px; /* Высота navigation bar */
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: calc(100vh - 70px); /* Вычитаем высоту navigation bar */
   overflow: hidden;
   margin: 0;
   padding: 0;
   background: #000;
+}
+
+@media (max-width: 768px) {
+  .map-container {
+    top: 60px;
+    height: calc(100vh - 60px);
+  }
+}
+
+@media (max-width: 480px) {
+  .map-container {
+    top: 56px;
+    height: calc(100vh - 56px);
+  }
 }
 
 /* Кнопки поверх карты */
