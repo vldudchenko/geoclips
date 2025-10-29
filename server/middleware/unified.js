@@ -19,19 +19,22 @@ const requireAuth = async (req, res, next) => {
       return next();
     }
 
-    // Dev-путь: поддержка Bearer токена Яндекс для совместимости клиента
-    const authHeader = req.get('authorization') || req.get('Authorization');
-    const allowBearer = config.nodeEnv !== 'production' || config.features.allowProfileLookupByAccessToken;
-    
-    if (allowBearer && authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring('Bearer '.length).trim();
-      if (token) {
-        try {
-          const user = await authenticateWithBearerToken(token);
-          req.user = user;
-          return next();
-        } catch (e) {
-          logger.warn('AUTH', 'Неверный Bearer токен', { message: e.message });
+    // Dev-путь: поддержка Bearer токена Яндекс ТОЛЬКО для development
+    // В production используем только session-based authentication
+    if (config.nodeEnv === 'development') {
+      const authHeader = req.get('authorization') || req.get('Authorization');
+      
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring('Bearer '.length).trim();
+        if (token) {
+          try {
+            const user = await authenticateWithBearerToken(token);
+            req.user = user;
+            logger.info('AUTH', 'Bearer token authentication (development only)');
+            return next();
+          } catch (e) {
+            logger.warn('AUTH', 'Неверный Bearer токен', { message: e.message });
+          }
         }
       }
     }
@@ -324,11 +327,11 @@ const setSecurityHeaders = (req, res, next) => {
   // Разрешаем загрузку карт, аватаров Yandex и Supabase storage
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://api-maps.yandex.ru",
-    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' https://api-maps.yandex.ru https://cdnjs.cloudflare.com",
+    "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
     "img-src 'self' data: https: https://avatars.yandex.net https://*.supabase.co",
     "connect-src 'self' https://*.supabase.co https://login.yandex.ru https://oauth.yandex.ru",
-    "font-src 'self' data:",
+    "font-src 'self' data: https://cdnjs.cloudflare.com",
     "frame-ancestors 'none'"
   ].join('; ');
   res.setHeader('Content-Security-Policy', csp);

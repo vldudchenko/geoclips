@@ -9,11 +9,13 @@ const config = require('../config/environment');
 const logger = require('../utils/logger');
 const cacheManager = require('../utils/cacheUtils');
 const supabase = require('../config/supabase');
-const dbUtils = require('../utils/dbUtils');
+const db = require('../utils/db'); // ✨ Новые модульные DB utils
 const { validateAddress, validateAccessToken } = require('../middleware/unified');
 const { requireAuth } = require('../middleware/unified');
+const { validateUUID } = require('../middleware/validators'); // ✨ Добавлены валидаторы
 const { updateUserBasicData } = require('../services/userService');
 const { isValidCoordinates, calculateDistance } = require('../utils/geoUtils');
+const { errors, geo } = require('../constants'); // ✨ Константы для консистентности
 
 // Подключение маршрутов комментариев
 const commentsRoutes = require('./comments');
@@ -293,7 +295,10 @@ router.get('/profile/:identifier', async (req, res) => {
     if (identifier === 'current') {
       // Текущий пользователь
       if (!currentUserId) {
-        return res.status(401).json({ error: 'Требуется авторизация' });
+        return res.status(errors.UNAUTHORIZED.statusCode).json({ 
+          error: errors.UNAUTHORIZED.message,
+          code: errors.UNAUTHORIZED.code
+        });
       }
       targetUserId = currentUserId;
       isCurrentUserProfile = true;
@@ -302,11 +307,20 @@ router.get('/profile/:identifier', async (req, res) => {
       targetUserId = identifier;
       isCurrentUserProfile = currentUserId === identifier;
     } else if (identifier.includes('_') || (identifier.includes('-') && !identifier.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i))) {
-      // Это выглядит как токен доступа — в продакшене запрещаем, в dev можно оставить для отладки (фича-флаг)
-      if (config.nodeEnv === 'production' || !config.features.allowProfileLookupByAccessToken) {
-        return res.status(400).json({ error: 'Идентификатор профиля недопустим' });
+      // Это выглядит как токен доступа — в production ЗАПРЕЩЕНО
+      // В development можно оставить для отладки
+      if (config.nodeEnv === 'production') {
+        logger.warn('API', 'Попытка доступа к профилю по токену в production', { identifier: identifier.substring(0, 10) + '...' });
+        return res.status(400).json({ 
+          error: 'Идентификатор профиля недопустим. Используйте UUID или display_name',
+          code: 'INVALID_IDENTIFIER'
+        });
       }
+      
+      // Development mode: разрешаем для отладки
       try {
+        logger.info('API', 'Development mode: поиск профиля по токену (небезопасно для production)');
+        
         const response = await axios.get('https://login.yandex.ru/info?format=json', {
           headers: {
             'Authorization': `OAuth ${identifier}`
@@ -364,7 +378,10 @@ router.get('/profile/:identifier', async (req, res) => {
         .maybeSingle();
       
       if (!user) {
-        return res.status(404).json({ error: 'Пользователь не найден' });
+        return res.status(errors.USER_NOT_FOUND.statusCode).json({ 
+          error: errors.USER_NOT_FOUND.message,
+          code: errors.USER_NOT_FOUND.code
+        });
       }
       
       userData = {
@@ -420,7 +437,7 @@ router.get('/profile/:identifier', async (req, res) => {
 /**
  * Лайкнуть видео
  */
-router.post('/videos/:videoId/like', requireAuth, async (req, res) => {
+router.post('/videos/:videoId/like', requireAuth, validateUUID('videoId'), async (req, res) => {
   try {
     const { videoId } = req.params;
     const currentUserId = req.user?.dbUser?.id;
@@ -489,7 +506,7 @@ router.post('/videos/:videoId/like', requireAuth, async (req, res) => {
 /**
  * Убрать лайк с видео
  */
-router.delete('/videos/:videoId/like', requireAuth, async (req, res) => {
+router.delete('/videos/:videoId/like', requireAuth, validateUUID('videoId'), async (req, res) => {
   try {
     const { videoId } = req.params;
     const currentUserId = req.user?.dbUser?.id;
@@ -539,7 +556,7 @@ router.delete('/videos/:videoId/like', requireAuth, async (req, res) => {
 /**
  * Проверить, лайкнул ли пользователь видео
  */
-router.get('/videos/:videoId/like-status', requireAuth, async (req, res) => {
+router.get('/videos/:videoId/like-status', requireAuth, validateUUID('videoId'), async (req, res) => {
   try {
     const { videoId } = req.params;
     const currentUserId = req.user?.dbUser?.id;
@@ -581,7 +598,7 @@ router.get('/', (req, res) => {
 /**
  * Регистрация просмотра видео
  */
-router.post('/videos/:videoId/view', async (req, res) => {
+router.post('/videos/:videoId/view', validateUUID('videoId'), async (req, res) => {
   try {
     const { videoId } = req.params;
     if (!videoId) return res.status(400).json({ error: 'videoId обязателен' });
@@ -633,7 +650,7 @@ router.post('/videos/:videoId/view', async (req, res) => {
     }
 
     // Обновляем счетчик просмотров в таблице videos
-    const updateResult = await dbUtils.updateVideoViewsCount(videoId);
+    const updateResult = await db.updateVideoViewsCount(videoId);
     
     if (!updateResult.success) {
       logger.error('API', 'Ошибка обновления счетчика просмотров', updateResult.error);
@@ -668,12 +685,15 @@ router.get('/videos/near', async (req, res) => {
     let radius = parseFloat(req.query.radius || '1');
 
     if (!isFinite(lat) || !isFinite(lon) || !isValidCoordinates(lat, lon)) {
-      return res.status(400).json({ error: 'Неверные координаты' });
+      return res.status(errors.INVALID_COORDINATES.statusCode).json({ 
+        error: errors.INVALID_COORDINATES.message,
+        code: errors.INVALID_COORDINATES.code
+      });
     }
 
-    if (!isFinite(radius) || radius <= 0) radius = 1;
+    if (!isFinite(radius) || radius <= 0) radius = geo.DEFAULT_SEARCH_RADIUS_KM;
     // Ограничиваем радиус, чтобы не перегружать БД
-    radius = Math.min(Math.max(radius, 0.2), 25);
+    radius = Math.min(Math.max(radius, geo.MIN_SEARCH_RADIUS_KM), geo.MAX_SEARCH_RADIUS_KM);
 
     const cacheKey = `videos_near_${lat.toFixed(5)}_${lon.toFixed(5)}_${radius.toFixed(2)}`;
     const cached = cacheManager.get(cacheKey);
@@ -682,9 +702,9 @@ router.get('/videos/near', async (req, res) => {
     }
 
     // Fallback без RPC: bbox + фильтрация по расстоянию
-    const kmPerDegLat = 111;
+    const kmPerDegLat = geo.KM_PER_DEGREE_LAT;
     const cosLat = Math.max(0.01, Math.cos(lat * Math.PI / 180));
-    const kmPerDegLon = 111 * cosLat;
+    const kmPerDegLon = geo.KM_PER_DEGREE_LAT * cosLat;
     const dLat = radius / kmPerDegLat;
     const dLon = radius / kmPerDegLon;
     const minLat = lat - dLat;

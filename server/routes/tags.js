@@ -5,13 +5,15 @@
 const express = require('express');
 const router = express.Router();
 const { requireAdmin } = require('../middleware/unified');
+const { validateUUID, validateString } = require('../middleware/validators'); // ✨ Валидаторы
 const supabase = require('../config/supabase');
 const logger = require('../utils/logger');
-const dbUtils = require('../utils/dbUtils');
+const db = require('../utils/db'); // ✨ Новые модульные DB utils
 const apiResponse = require('../middleware/apiResponse');
+const { errors } = require('../constants'); // ✨ Error constants
 
 // Логируем регистрацию маршрутов
-console.log('Tags routes registered: GET /, POST /, DELETE /bulk, DELETE /:id, POST /fix-counters');
+logger.info('ROUTES', 'Tags routes registered: GET /, POST /, DELETE /bulk, DELETE /:id, POST /fix-counters');
 
 /**
  * Получение списка тегов
@@ -118,8 +120,8 @@ router.post('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
     // Получаем ID пользователя из сессии (если есть)
     const userId = req.user?.dbUser?.id || null;
     
-    // Используем функцию из dbUtils для создания тега
-    const tag = await dbUtils.getOrCreateTag(tagName, userId);
+    // Используем функцию из db для создания тега
+    const tag = await db.getOrCreateTag(tagName, userId);
     
     
     apiResponse.sendSuccess(res, {
@@ -158,7 +160,7 @@ router.delete('/bulk', requireAdmin, apiResponse.asyncHandler(async (req, res) =
   
   
   // Используем общую функцию удаления
-  const result = await dbUtils.deleteTagsWithCleanup(tagIds);
+  const result = await db.deleteTagsWithCleanup(tagIds);
 
   if (!result.success) {
     return apiResponse.sendError(res, 'Ошибка удаления тегов', {
@@ -181,7 +183,7 @@ router.delete('/bulk', requireAdmin, apiResponse.asyncHandler(async (req, res) =
 /**
  * Удаление одного тега
  */
-router.delete('/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+router.delete('/:id', requireAdmin, validateUUID('id'), apiResponse.asyncHandler(async (req, res) => {
   const tagId = req.params.id;
 
   // Получаем информацию о теге перед удалением
@@ -193,23 +195,28 @@ router.delete('/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) =>
 
   if (tagError || !tag) {
     logger.warn('ADMIN', 'Тег не найден', { tagId });
-    return apiResponse.sendError(res, 'Тег не найден', {
+    return apiResponse.sendError(res, errors.TAG_NOT_FOUND || 'Тег не найден', {
       statusCode: 404,
       code: 'NOT_FOUND'
     });
   }
 
-  // Используем общую функцию удаления
-  const result = await dbUtils.deleteTagsWithCleanup(tagId);
+  // Используем общую функцию удаления из модульных утилит
+  const result = await db.deleteTagsWithCleanup(tagId);
 
   if (!result.success) {
+    logger.error('ADMIN', 'Ошибка удаления тега', { tagId, error: result.error });
     return apiResponse.sendError(res, 'Ошибка удаления тега', {
       statusCode: 500,
       code: 'DB_ERROR'
     });
   }
 
-  
+  logger.success('ADMIN', 'Тег удален', { 
+    tagId, 
+    tagName: tag.name, 
+    deletedConnections: result.deletedConnections 
+  });
 
   apiResponse.sendSuccess(res, {
     message: 'Тег успешно удален',
@@ -246,7 +253,7 @@ router.post('/fix-counters', requireAdmin, apiResponse.asyncHandler(async (req, 
 
   // Пересчитываем счетчики для каждого тега
   const tagIds = tags.map(t => t.id);
-  const updateResult = await dbUtils.updateTagCounters(tagIds, true);
+  const updateResult = await db.updateTagCounters(tagIds, true);
 
  
   

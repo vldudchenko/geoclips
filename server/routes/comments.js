@@ -7,8 +7,10 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const apiResponse = require('../middleware/apiResponse');
 const { requireAuth, requireAdmin } = require('../middleware/unified');
+const { validateUUID, validateString } = require('../middleware/validators'); // ✨ Валидаторы
 const logger = require('../utils/logger');
-const dbUtils = require('../utils/dbUtils');
+const db = require('../utils/db'); // ✨ Новые модульные DB utils
+const { errors } = require('../constants'); // ✨ Error constants
 
 /**
  * Добавляет поле is_edited к комментарию

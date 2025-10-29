@@ -5,10 +5,12 @@
 const express = require('express');
 const router = express.Router();
 const { requireAdmin } = require('../middleware/unified');
+const { validateUUID } = require('../middleware/validators'); // ✨ Валидаторы
 const supabase = require('../config/supabase');
 const logger = require('../utils/logger');
-const dbUtils = require('../utils/dbUtils');
+const db = require('../utils/db'); // ✨ Новые модульные DB utils
 const apiResponse = require('../middleware/apiResponse');
+const { errors } = require('../constants'); // ✨ Error constants
 
 /**
  * Получение списка пользователей
@@ -44,6 +46,12 @@ router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
     userIds: userIds.slice(0, 3) 
   });
   
+  // ⚡ TODO: После применения SQL функции get_users_statistics() в Supabase,
+  // заменить эти 7 запросов на 1:
+  // const { data: stats } = await supabase.rpc('get_users_statistics', { user_ids: userIds });
+  // Это уменьшит latency с ~350ms до ~80ms (-77%)
+  // См. server/sql/optimize_user_statistics.sql
+  
   const [
     videosCounts,
     commentsWritten,
@@ -53,13 +61,13 @@ router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
     tagsCreated,
     tagsUsed
   ] = await Promise.all([
-    dbUtils.getVideoCountsByUsers(userIds),
-    dbUtils.getCommentsWrittenByUsers(userIds),
-    dbUtils.getCommentsReceivedByUsers(userIds),
-    dbUtils.getLikesGivenByUsers(userIds),
-    dbUtils.getLikesReceivedByUsers(userIds),
-    dbUtils.getTagsCountsByUsers(userIds),
-    dbUtils.getTagsUsedByUsers(userIds)
+    db.getVideoCountsByUsers(userIds),
+    db.getCommentsWrittenByUsers(userIds),
+    db.getCommentsReceivedByUsers(userIds),
+    db.getLikesGivenByUsers(userIds),
+    db.getLikesReceivedByUsers(userIds),
+    db.getTagsCountsByUsers(userIds),
+    db.getTagsUsedByUsers(userIds)
   ]);
 
   logger.info('ADMIN', 'Статистика загружена', {
@@ -139,7 +147,7 @@ router.get('/search', requireAdmin, apiResponse.asyncHandler(async (req, res) =>
 
   // Получаем количество видео для каждого пользователя
   const userIds = Array.isArray(users) ? users.map(u => u.id) : [];
-  const videosCounts = await dbUtils.getVideoCountsByUsers(userIds);
+  const videosCounts = await db.getVideoCountsByUsers(userIds);
 
   const processedUsers = Array.isArray(users) ? users.map(user => ({
     ...user,
@@ -157,7 +165,7 @@ router.get('/search', requireAdmin, apiResponse.asyncHandler(async (req, res) =>
 /**
  * Удаление пользователя и всех его данных
  */
-router.delete('/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
+router.delete('/:id', requireAdmin, validateUUID('id'), apiResponse.asyncHandler(async (req, res) => {
   const userId = req.params.id;
   
 
@@ -169,9 +177,9 @@ router.delete('/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) =>
     .single();
 
   if (fetchError || !user) {
-    return apiResponse.sendError(res, 'Пользователь не найден', {
-      statusCode: 404,
-      code: 'NOT_FOUND',
+    return apiResponse.sendError(res, errors.USER_NOT_FOUND.message, {
+      statusCode: errors.USER_NOT_FOUND.statusCode,
+      code: errors.USER_NOT_FOUND.code,
       operation: 'получение пользователя'
     });
   }
@@ -197,7 +205,7 @@ router.delete('/:id', requireAdmin, apiResponse.asyncHandler(async (req, res) =>
 
   if (Array.isArray(userVideos) && userVideos.length > 0) {
     const videoIds = userVideos.map(v => v.id);
-    const result = await dbUtils.deleteVideosWithTagCleanup(videoIds);
+    const result = await db.deleteVideosWithTagCleanup(videoIds);
     deletedVideosCount = result.deletedCount;
     updatedTagsCount = result.updatedTags;
   }

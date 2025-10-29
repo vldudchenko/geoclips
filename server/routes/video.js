@@ -12,9 +12,11 @@ const fs = require('fs').promises;
 const config = require('../config/environment');
 const logger = require('../utils/logger');
 const { validateFile, requireAuth, requireAdmin } = require('../middleware/unified');
+const { validateUUID } = require('../middleware/validators'); // ✨ Валидаторы
 const supabase = require('../config/supabase');
-const dbUtils = require('../utils/dbUtils');
+const db = require('../utils/db'); // ✨ Новые модульные DB utils
 const apiResponse = require('../middleware/apiResponse');
+const { errors } = require('../constants'); // ✨ Error constants
 
 // Настройка multer для загрузки файлов
 const upload = multer({
@@ -143,7 +145,7 @@ router.delete('/:videoId', requireAuth, apiResponse.asyncHandler(async (req, res
   }
 
   // Используем общую функцию удаления видео с очисткой тегов
-  const result = await dbUtils.deleteVideosWithTagCleanup(videoId);
+  const result = await db.deleteVideosWithTagCleanup(videoId);
 
   if (!result.success) {
     return apiResponse.sendError(res, 'Ошибка удаления видео', {
@@ -181,7 +183,7 @@ router.delete('/:videoId', requireAuth, apiResponse.asyncHandler(async (req, res
 router.get('/:videoId/tags', apiResponse.asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
-  const tags = await dbUtils.getVideoTags(videoId);
+  const tags = await db.getVideoTags(videoId);
 
   apiResponse.sendSuccess(res, { tags });
 }));
@@ -231,7 +233,7 @@ router.post('/:videoId/tags', requireAuth, apiResponse.asyncHandler(async (req, 
   }
 
   // Привязываем теги к видео
-  const result = await dbUtils.assignTagsToVideo(videoId, tags, currentUserId);
+  const result = await db.assignTagsToVideo(videoId, tags, currentUserId);
 
   
   apiResponse.sendSuccess(res, {
@@ -294,7 +296,7 @@ router.delete('/:videoId/tags/:tagId', requireAuth, apiResponse.asyncHandler(asy
   }
 
   // Пересчитываем счетчик использования тега
-  await dbUtils.updateTagCounters([tagId], true);
+  await db.updateTagCounters([tagId], true);
 
   
   apiResponse.sendSuccess(res, {
@@ -308,7 +310,7 @@ router.delete('/:videoId/tags/:tagId', requireAuth, apiResponse.asyncHandler(asy
  * Получение списка видео (для администраторов)
  */
 router.get('/admin', requireAdmin, apiResponse.asyncHandler(async (req, res) => {  
-  const { videos, error } = await dbUtils.getAllVideosForAdmin();
+  const { videos, error } = await db.getAllVideosForAdmin();
 
   if (error) {
     return apiResponse.sendError(res, error, {
@@ -341,7 +343,7 @@ router.get('/admin/search', requireAdmin, apiResponse.asyncHandler(async (req, r
     minLikes
   };
 
-  const { videos, count, error } = await dbUtils.searchVideosForAdmin(filters);
+  const { videos, count, error } = await db.searchVideosForAdmin(filters);
 
   if (error) {
     return apiResponse.sendError(res, error, {
@@ -366,7 +368,7 @@ router.delete('/admin/:id', requireAdmin, apiResponse.asyncHandler(async (req, r
   const videoId = req.params.id;
   
   // Используем общую функцию удаления с очисткой тегов
-  const result = await dbUtils.deleteVideosWithTagCleanup(videoId);
+  const result = await db.deleteVideosWithTagCleanup(videoId);
 
   if (!result.success) {
     return apiResponse.sendError(res, 'Ошибка удаления видео', {
@@ -396,7 +398,7 @@ router.delete('/admin/bulk', requireAdmin, apiResponse.asyncHandler(async (req, 
   
     
   // Используем общую функцию удаления
-  const result = await dbUtils.deleteVideosWithTagCleanup(videoIds);
+  const result = await db.deleteVideosWithTagCleanup(videoIds);
   
   apiResponse.sendSuccess(res, {
     message: 'Видео успешно удалены',
@@ -411,7 +413,7 @@ router.delete('/admin/bulk', requireAdmin, apiResponse.asyncHandler(async (req, 
 router.get('/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   const { id } = req.params;
   
-  const { tags, error } = await dbUtils.getVideoTagsForAdmin(id);
+  const { tags, error } = await db.getVideoTagsForAdmin(id);
   
   if (error) {
     logger.error('VIDEO', 'Ошибка получения тегов видео', error);
@@ -431,7 +433,7 @@ router.get('/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req, res) 
 router.get('/:id/comments', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   const { id } = req.params;
   
-  const { comments, error } = await dbUtils.getVideoCommentsForAdmin(id);
+  const { comments, error } = await db.getVideoCommentsForAdmin(id);
   
   if (error) {
     logger.error('VIDEO', 'Ошибка получения комментариев видео', error);
@@ -451,7 +453,7 @@ router.get('/:id/comments', requireAdmin, apiResponse.asyncHandler(async (req, r
 router.get('/:id/likes', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   const { id } = req.params;
   
-  const { likes, error } = await dbUtils.getVideoLikesForAdmin(id);
+  const { likes, error } = await db.getVideoLikesForAdmin(id);
   
   if (error) {
     logger.error('VIDEO', 'Ошибка получения лайков видео', error);
@@ -470,7 +472,7 @@ router.get('/:id/likes', requireAdmin, apiResponse.asyncHandler(async (req, res)
 router.get('/:id/views', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   const { id } = req.params;
   
-  const { views, error } = await dbUtils.getVideoViewsForAdmin(id);
+  const { views, error } = await db.getVideoViewsForAdmin(id);
   
   if (error) {
     logger.error('VIDEO', 'Ошибка получения просмотров видео', error);
@@ -489,7 +491,7 @@ router.get('/:id/views', requireAdmin, apiResponse.asyncHandler(async (req, res)
 router.post('/admin/fix-views-counters', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
   logger.info('VIDEO', 'Запуск исправления счетчиков просмотров');
   
-  const result = await dbUtils.fixVideoViewsCounters();
+  const result = await db.fixVideoViewsCounters();
   
   if (!result.success) {
     logger.error('VIDEO', 'Ошибка исправления счетчиков просмотров', result.error);
@@ -564,7 +566,7 @@ router.put('/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req, res) 
     
     // Если переданы названия тегов, используем assignTagsToVideo
     if (tagNames && tagNames.length > 0) {
-      result = await dbUtils.assignTagsToVideo(id, tagNames, req.user?.dbUser?.id);
+      result = await db.assignTagsToVideo(id, tagNames, req.user?.dbUser?.id);
     } 
     // Если переданы ID тегов, добавляем связи напрямую
     else if (tagIds && tagIds.length > 0) {
@@ -597,7 +599,7 @@ router.put('/:id/tags', requireAdmin, apiResponse.asyncHandler(async (req, res) 
     
     // Обновляем счетчики только для тегов, связанных с этим видео
     if (tagIds && tagIds.length > 0) {
-      await dbUtils.updateTagCounters(tagIds, true);
+      await db.updateTagCounters(tagIds, true);
     }
     
     logger.info('VIDEO', `Теги обновлены для видео ${id}`, { tagIds, tagNames, result });

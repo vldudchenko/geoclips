@@ -3,133 +3,385 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeoClips Admin Panel</title>
+    <title>GeoClips Admin Panel v2.0</title>
     <link rel="stylesheet" href="/admin/admin.css">
-    
+    <!-- Font Awesome для иконок -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <button class="nav-tab active" onclick="switchTab('users')">👥 Пользователи</button>
-            <button class="nav-tab" onclick="switchTab('videos')">🎬 Видео</button>
-            <button class="nav-tab" onclick="switchTab('tags')">🏷️ Теги</button>
-            <button class="nav-tab" onclick="switchTab('comments')">💬 Комментарии</button>
-            <button class="logout-btn" onclick="logout()">🚪 Выйти</button>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-map-marked-alt"></i>
+                <span>GeoClips</span>
+            </div>
+            <button class="sidebar-toggle" id="sidebarToggle">
+                <i class="fas fa-bars"></i>
+            </button>
         </div>
-        
 
-        <!-- Вкладка: Пользователи -->
-        <div id="tab-users" class="tab-content active">
-            <div class="section">              
-                
-                <div class="export-panel">
-                    <button class="btn btn-secondary" onclick="exportData('users', 'csv')">📥 Экспорт CSV</button>
-                    <button class="btn btn-secondary" onclick="exportData('users', 'json')">📥 Экспорт JSON</button>
+        <nav class="sidebar-nav">
+            <a href="#dashboard" class="nav-item active" onclick="switchView('dashboard')">
+                <i class="fas fa-chart-line"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#users" class="nav-item" onclick="switchView('users')">
+                <i class="fas fa-users"></i>
+                <span>Пользователи</span>
+            </a>
+            <a href="#videos" class="nav-item" onclick="switchView('videos')">
+                <i class="fas fa-video"></i>
+                <span>Видео</span>
+            </a>
+            <a href="#tags" class="nav-item" onclick="switchView('tags')">
+                <i class="fas fa-tags"></i>
+                <span>Теги</span>
+            </a>
+            <a href="#comments" class="nav-item" onclick="switchView('comments')">
+                <i class="fas fa-comments"></i>
+                <span>Комментарии</span>
+            </a>
+            <a href="#analytics" class="nav-item" onclick="switchView('analytics')">
+                <i class="fas fa-chart-pie"></i>
+                <span>Аналитика</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Выйти</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="top-header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="globalSearch" placeholder="Поиск по всей админке..." onkeyup="handleGlobalSearch(event)">
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <i class="fas fa-clock"></i>
+                        <span id="currentTime">--:--</span>
+                    </div>
+                </div>
+                <div class="user-menu">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Admin</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dashboard View -->
+        <div id="view-dashboard" class="view-container active">
+            <div class="view-header">
+                <h1><i class="fas fa-chart-line"></i> Dashboard</h1>
+                <button class="btn btn-primary" onclick="refreshDashboard()">
+                    <i class="fas fa-sync-alt"></i> Обновить
+                </button>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon users">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value" id="dash-users-total">0</div>
+                        <div class="stat-label">Всего пользователей</div>
+                        <div class="stat-change positive" id="dash-users-change">+0 за неделю</div>
+                    </div>
                 </div>
 
-                <div id="users-container">
-                    <div class="loading">Загрузка пользователей...</div>
+                <div class="stat-card">
+                    <div class="stat-icon videos">
+                        <i class="fas fa-video"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value" id="dash-videos-total">0</div>
+                        <div class="stat-label">Всего видео</div>
+                        <div class="stat-change positive" id="dash-videos-change">+0 за неделю</div>
+                    </div>
                 </div>
 
-                <div class="pagination" id="users-pagination"></div>
+                <div class="stat-card">
+                    <div class="stat-icon comments">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value" id="dash-comments-total">0</div>
+                        <div class="stat-label">Всего комментариев</div>
+                        <div class="stat-change positive" id="dash-comments-change">+0 за неделю</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon likes">
+                        <i class="fas fa-heart"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-value" id="dash-likes-total">0</div>
+                        <div class="stat-label">Всего лайков</div>
+                        <div class="stat-change positive" id="dash-likes-change">+0 за неделю</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-line"></i> Активность за последние 7 дней</h3>
+                    <canvas id="activityChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-pie"></i> Распределение по категориям</h3>
+                    <canvas id="distributionChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="activity-section">
+                <h3><i class="fas fa-history"></i> Последняя активность</h3>
+                <div id="recent-activity" class="activity-list">
+                    <div class="loading">Загрузка...</div>
+                </div>
             </div>
         </div>
 
-        <!-- Вкладка: Видео -->
-        <div id="tab-videos" class="tab-content">
-            <div class="section">                
-                <div class="export-panel">
-                    <button class="btn btn-secondary" onclick="exportData('videos', 'csv')">📥 Экспорт CSV</button>
-                    <button class="btn btn-secondary" onclick="exportData('videos', 'json')">📥 Экспорт JSON</button>
+        <!-- Users View -->
+        <div id="view-users" class="view-container">
+            <div class="view-header">
+                <h1><i class="fas fa-users"></i> Управление пользователями <span class="count-badge" id="users-total-count">0</span></h1>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="exportData('users', 'csv')">
+                        <i class="fas fa-file-csv"></i> Экспорт CSV
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportData('users', 'json')">
+                        <i class="fas fa-file-code"></i> Экспорт JSON
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-panel">
+                <div class="filter-group">
+                    <input type="text" id="users-search" placeholder="Поиск по имени, email..." class="filter-input" onkeyup="filterUsers()">
+                    <select id="users-sort" class="filter-select" onchange="filterUsers()">
+                        <option value="created_at:desc">Новые первые</option>
+                        <option value="created_at:asc">Старые первые</option>
+                        <option value="display_name:asc">Имя А-Я</option>
+                        <option value="display_name:desc">Имя Я-А</option>
+                        <option value="videosCount:desc">По видео (больше)</option>
+                        <option value="videosCount:asc">По видео (меньше)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Users Table -->
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Аватар</th>
+                            <th>Имя</th>
+                            <th>Логин</th>
+                            <th>Создан</th>
+                            <th>Видео</th>
+                            <th>Комментарии</th>
+                            <th>Лайки</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-table-body">
+                        <tr><td colspan="8" class="loading">Загрузка...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination" id="users-pagination"></div>
+        </div>
+
+        <!-- Videos View -->
+        <div id="view-videos" class="view-container">
+            <div class="view-header">
+                <h1><i class="fas fa-video"></i> Управление видео <span class="count-badge" id="videos-total-count">0</span></h1>
+                <div class="header-actions">
                     <button class="btn btn-danger" onclick="bulkDeleteVideos()" id="bulk-delete-videos-btn" disabled>
-                        🗑️ Удалить выбранные
+                        <i class="fas fa-trash"></i> Удалить выбранные
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportData('videos', 'csv')">
+                        <i class="fas fa-file-csv"></i> Экспорт CSV
                     </button>
                 </div>
-
-                <div id="videos-container">
-                    <div class="loading">Загрузка видео...</div>
-                </div>
-
-                <div class="pagination" id="videos-pagination"></div>
             </div>
+
+            <!-- Filters -->
+            <div class="filters-panel">
+                <div class="filter-group">
+                    <input type="text" id="videos-search" placeholder="Поиск по описанию, тегам..." class="filter-input" onkeyup="filterVideos()">
+                    <select id="videos-sort" class="filter-select" onchange="filterVideos()">
+                        <option value="created_at:desc">Новые первые</option>
+                        <option value="created_at:asc">Старые первые</option>
+                        <option value="likes_count:desc">По лайкам</option>
+                        <option value="views_count:desc">По просмотрам</option>
+                    </select>
+                    <input type="number" id="min-views" placeholder="Мин. просмотров" class="filter-input" onchange="filterVideos()">
+                    <input type="number" id="min-likes" placeholder="Мин. лайков" class="filter-input" onchange="filterVideos()">
+                </div>
+            </div>
+
+            <!-- Videos Grid -->
+            <div id="videos-grid" class="videos-grid">
+                <div class="loading">Загрузка...</div>
+            </div>
+
+            <div class="pagination" id="videos-pagination"></div>
         </div>
 
-        <!-- Вкладка: Теги -->
-        <div id="tab-tags" class="tab-content">
-            <div class="section">                
-                <button class="btn" onclick="loadTags()">Обновить список</button>
-                <div class="tag-form">
-                    <h3>➕ Добавить новый тег</h3>
-                    <div class="form-group">
-                        <input class="search-input" type="text" id="new-tag-name" placeholder="Введите название тега..." maxlength="50" onkeypress="if(event.key==='Enter') createTag()">
-                        <button class="btn btn-primary" onclick="createTag()">Создать тег</button>
-                    </div>
-                    <div class="form-help">
-                        <small>💡 Тег будет создан в нижнем регистре и автоматически нормализован</small>
-                    </div>                    
-                </div>
-                <div class="export-panel">
-                    <button class="btn btn-secondary" onclick="exportData('tags', 'csv')">📥 Экспорт CSV</button>
-                    <button class="btn btn-secondary" onclick="exportData('tags', 'json')">📥 Экспорт JSON</button>
+        <!-- Tags View -->
+        <div id="view-tags" class="view-container">
+            <div class="view-header">
+                <h1><i class="fas fa-tags"></i> Управление тегами <span class="count-badge" id="tags-total-count">0</span></h1>
+                <div class="header-actions">
                     <button class="btn btn-danger" onclick="bulkDeleteTags()" id="bulk-delete-tags-btn" disabled>
-                        🗑️ Удалить выбранные
+                        <i class="fas fa-trash"></i> Удалить выбранные
                     </button>
-                    <button class="btn btn-secondary" onclick="selectAllTags()" id="select-all-btn">
-                        ✅ Выбрать все
-                    </button>
-                    <button class="btn btn-secondary" onclick="clearTagSelection()" id="clear-selection-btn">
-                        🔄 Сбросить выбор
+                    <button class="btn btn-secondary" onclick="selectAllTags()">
+                        <i class="fas fa-check-square"></i> Выбрать все
                     </button>
                 </div>
-                <div id="tags-container">
-                    <div class="loading">Загрузка тегов...</div>
+            </div>
+
+            <!-- Add Tag Form -->
+            <div class="form-card">
+                <h3><i class="fas fa-plus"></i> Добавить новый тег</h3>
+                <div class="form-row">
+                    <input type="text" id="new-tag-name" placeholder="Введите название тега..." class="form-input" onkeypress="if(event.key==='Enter') createTag()" maxlength="50">
+                    <button class="btn btn-primary" onclick="createTag()">
+                        <i class="fas fa-plus"></i> Создать
+                    </button>
                 </div>
+                <small class="form-hint">💡 Тег будет создан в нижнем регистре</small>
+            </div>
+
+            <!-- Tags Grid -->
+            <div id="tags-grid" class="tags-grid">
+                <div class="loading">Загрузка...</div>
             </div>
         </div>
 
-        <!-- Вкладка: Комментарии -->
-        <div id="tab-comments" class="tab-content">
-            <div class="section">
-                <button class="btn" onclick="loadComments()">🔄 Обновить список</button>
-                
-                <div class="filters">
-                    <div class="form-group">
-                        <label>Фильтр по видео:</label>
-                        <select id="comment-video-filter" onchange="loadComments()" class="filter-select">
-                            <option value="">Все видео</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Сортировка:</label>
-                        <select id="comment-sort" onchange="loadComments()" class="filter-select">
-                            <option value="created_at:desc">Новые первые</option>
-                            <option value="created_at:asc">Старые первые</option>
-                        </select>
+        <!-- Comments View -->
+        <div id="view-comments" class="view-container">
+            <div class="view-header">
+                <h1><i class="fas fa-comments"></i> Управление комментариями <span class="count-badge" id="comments-total-count">0</span></h1>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="exportData('comments', 'csv')">
+                        <i class="fas fa-file-csv"></i> Экспорт CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-panel">
+                <div class="filter-group">
+                    <input type="text" id="comments-search" placeholder="Поиск по тексту..." class="filter-input" onkeyup="filterComments()">
+                    <select id="comments-video-filter" class="filter-select" onchange="filterComments()">
+                        <option value="">Все видео</option>
+                    </select>
+                    <select id="comments-sort" class="filter-select" onchange="filterComments()">
+                        <option value="created_at:desc">Новые первые</option>
+                        <option value="created_at:asc">Старые первые</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Comments List -->
+            <div id="comments-list" class="comments-list">
+                <div class="loading">Загрузка...</div>
+            </div>
+
+            <div class="pagination" id="comments-pagination"></div>
+        </div>
+
+        <!-- Analytics View -->
+        <div id="view-analytics" class="view-container">
+            <div class="view-header">
+                <h1><i class="fas fa-chart-pie"></i> Аналитика и статистика</h1>
+                <div class="header-actions">
+                    <select id="analytics-period" class="filter-select" onchange="updateAnalytics()">
+                        <option value="7">За 7 дней</option>
+                        <option value="30">За 30 дней</option>
+                        <option value="90">За 90 дней</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="analytics-grid">
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-bar"></i> Активность пользователей</h3>
+                    <canvas id="userActivityChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h3><i class="fas fa-chart-area"></i> Загрузка видео</h3>
+                    <canvas id="videoUploadChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h3><i class="fas fa-map-marker-alt"></i> Топ локаций</h3>
+                    <div id="top-locations" class="top-list">
+                        <div class="loading">Загрузка...</div>
                     </div>
                 </div>
-                
-                <div class="stats-row">
-                    <div class="stat-inline">
-                        Всего комментариев: <strong id="comments-total">0</strong>
+
+                <div class="chart-card">
+                    <h3><i class="fas fa-fire"></i> Популярные теги</h3>
+                    <div id="popular-tags" class="tags-cloud">
+                        <div class="loading">Загрузка...</div>
                     </div>
-                    <div class="stat-inline">
-                        За последние 24 часа: <strong id="comments-recent">0</strong>
-                    </div>
-                </div>
-                
-                <div class="export-panel">
-                    <button class="btn btn-secondary" onclick="exportData('comments', 'csv')">📥 Экспорт CSV</button>
-                    <button class="btn btn-secondary" onclick="exportData('comments', 'json')">📥 Экспорт JSON</button>
-                </div>
-                
-                <div id="comments-container">
-                    <div class="loading">Загрузка комментариев...</div>
                 </div>
             </div>
         </div>
+    </main>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Modal Template -->
+    <div id="modal-overlay" class="modal-overlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modal-title">Modal Title</h3>
+                <button class="modal-close" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                Modal content
+            </div>
+            <div class="modal-footer" id="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                <button class="btn btn-primary" id="modal-confirm">Подтвердить</button>
+            </div>
         </div>
     </div>
 
-    <script src="/admin/admin-unified.js"></script>
+    <!-- Chart.js для графиков -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="/admin/admin.js"></script>
 </body>
 </html>
+
