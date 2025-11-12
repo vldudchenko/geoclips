@@ -8,6 +8,9 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingText, setEditingText] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const loadComments = useCallback(async () => {
     try {
@@ -139,6 +142,68 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
     }
   };
 
+  const handleEdit = (comment) => {
+    setEditingCommentId(comment.id);
+    setEditingText(comment.text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingText('');
+  };
+
+  const handleSaveEdit = async (commentId) => {
+    if (!editingText.trim()) {
+      alert('Комментарий не может быть пустым');
+      return;
+    }
+
+    if (editingText.length > 1000) {
+      alert('Комментарий не может быть длиннее 1000 символов');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/comments/${commentId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({ text: editingText.trim() })
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Ошибка обновления комментария');
+      }
+
+      const data = await response.json();
+      
+      // Обновляем комментарий в списке
+      // Ответ от сервера имеет структуру: { success: true, comment: {...} }
+      const updatedComment = data.comment || data;
+      setComments(comments.map(c => 
+        c.id === commentId ? updatedComment : c
+      ));
+      
+      // Сбрасываем состояние редактирования
+      setEditingCommentId(null);
+      setEditingText('');
+      setSaving(false);
+    } catch (err) {
+      console.error('Ошибка обновления комментария:', err);
+      alert('Не удалось обновить комментарий: ' + err.message);
+      setSaving(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -249,19 +314,69 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
                     )}
                   </span>
                 </div>
-                {currentUser && currentUser.id === comment.users?.id && (
-                  <button
-                    className="comment-delete-btn"
-                    onClick={() => handleDelete(comment.id)}
-                    title="Удалить комментарий"
-                  >
-                    🗑️
-                  </button>
+                {currentUser && (currentUser.dbUser?.id === comment.users?.id || currentUser.id === comment.users?.id) && (
+                  <div className="comment-actions">
+                    {editingCommentId === comment.id ? (
+                      <>
+                        <button
+                          className="comment-save-btn"
+                          onClick={() => handleSaveEdit(comment.id)}
+                          disabled={saving}
+                          title="Сохранить изменения"
+                        >
+                          {saving ? '⏳' : '✓'}
+                        </button>
+                        <button
+                          className="comment-cancel-btn"
+                          onClick={handleCancelEdit}
+                          disabled={saving}
+                          title="Отменить редактирование"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="comment-edit-btn"
+                          onClick={() => handleEdit(comment)}
+                          title="Редактировать комментарий"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="comment-delete-btn"
+                          onClick={() => handleDelete(comment.id)}
+                          title="Удалить комментарий"
+                        >
+                          🗑️
+                        </button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
-              <div className="comment-text">
-                {comment.text}
-              </div>
+              {editingCommentId === comment.id ? (
+                <div className="comment-edit-form">
+                  <textarea
+                    className="comment-edit-input"
+                    value={editingText}
+                    onChange={(e) => setEditingText(e.target.value)}
+                    maxLength={1000}
+                    rows={3}
+                    disabled={saving}
+                  />
+                  <div className="comment-edit-footer">
+                    <span className="comment-length">
+                      {editingText.length}/1000
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="comment-text">
+                  {comment.text}
+                </div>
+              )}
             </div>
           ))
         )}

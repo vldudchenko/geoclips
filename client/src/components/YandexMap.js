@@ -638,7 +638,13 @@ const YandexMap = ({ ymaps, mapData, onCoordinatesSelect, currentUser, onNavigat
           onClose={() => {
             logger.video('Закрытие VideoPlayer');
             setSelectedVideo(null);
-          }} 
+          }}
+          onNavigateToProfile={(profilePath) => {
+            // Закрываем плеер
+            setSelectedVideo(null);
+            // Выполняем навигацию на профиль
+            navigate(profilePath);
+          }}
         />
       )}
     </>

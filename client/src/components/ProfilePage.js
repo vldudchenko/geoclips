@@ -95,6 +95,20 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
     }
   };
 
+  const handleNavigateToProfile = (profilePath) => {
+    // Закрываем плеер
+    setSelectedVideo(null);
+    setSelectedIndex(-1);
+    // Если мы переходим на другой профиль (не текущий), выполняем навигацию
+    // Если это тот же профиль, просто закрываем плеер
+    const currentProfilePath = profileData?.user?.display_name 
+      ? `/profile/${profileData.user.display_name}` 
+      : null;
+    if (profilePath !== currentProfilePath) {
+      navigate(profilePath);
+    }
+  };
+
   const handleNext = () => {
     if (!profileData?.videos || selectedIndex < 0) return;
     const nextIdx = (selectedIndex + 1) % profileData.videos.length;
@@ -522,6 +536,7 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
           video={selectedVideo} 
           currentUser={user}
           onClose={() => { setSelectedVideo(null); setSelectedIndex(-1); }}
+          onNavigateToProfile={handleNavigateToProfile}
           onPrev={handlePrev}
           onNext={handleNext}
           hasPrev={profileData?.videos?.length > 1}

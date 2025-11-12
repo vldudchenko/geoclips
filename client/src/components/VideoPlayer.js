@@ -5,7 +5,7 @@ import { UserService } from '../services/userService';
 import { ServerApi } from '../services/serverApi';
 import './VideoPlayer.css';
 
-const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = false, hasNext = false, authorDisplayName, authorAvatar, onOpenComments, commentsCount = 0, onCommentsCountChange }) => {
+const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = false, hasNext = false, authorDisplayName, authorAvatar, onOpenComments, commentsCount = 0, onCommentsCountChange, onNavigateToProfile }) => {
   const videoRef = useRef(null);
   const lastNavRef = useRef(0);
   const navigate = useNavigate();
@@ -211,23 +211,43 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
   const handleAvatarClick = async (e) => {
     e.stopPropagation();
     
-    if (!video?.user_id) return;
+    // Определяем путь к профилю
+    let profilePath = null;
     
-    try {
-      // Получаем данные пользователя из базы данных
-      const userData = await UserService.getUserById(video.user_id);
-      
-      if (userData?.display_name) {
-        // Переходим на профиль по display_name
-        navigate(`/profile/${userData.display_name}`);
-      } else {
-        // Fallback на ID если display_name недоступен
-        navigate(`/profile/${video.user_id}`);
+    // Используем уже доступные данные для навигации
+    // Приоритет: video.users.display_name > authorDisplayName > video.user_id
+    if (video?.users?.display_name) {
+      profilePath = `/profile/${video.users.display_name}`;
+    } else if (authorDisplayName) {
+      profilePath = `/profile/${authorDisplayName}`;
+    } else if (video?.user_id) {
+      try {
+        // Получаем данные пользователя из базы данных только если display_name недоступен
+        const userData = await UserService.getUserById(video.user_id);
+        
+        if (userData?.display_name) {
+          // Переходим на профиль по display_name
+          profilePath = `/profile/${userData.display_name}`;
+        } else {
+          // Fallback на ID если display_name недоступен
+          profilePath = `/profile/${video.user_id}`;
+        }
+      } catch (error) {
+        console.error('Ошибка при переходе на профиль:', error);
+        // Fallback на ID при ошибке
+        profilePath = `/profile/${video.user_id}`;
       }
-    } catch (error) {
-      console.error('Ошибка при переходе на профиль:', error);
-      // Fallback на ID при ошибке
-      navigate(`/profile/${video.user_id}`);
+    }
+    
+    // Если путь определен, используем onNavigateToProfile (если доступен) или navigate
+    if (profilePath) {
+      if (onNavigateToProfile) {
+        // Используем callback для закрытия плеера перед навигацией
+        onNavigateToProfile(profilePath);
+      } else {
+        // Fallback на прямую навигацию, если callback не предоставлен
+        navigate(profilePath);
+      }
     }
   };
 

@@ -82,6 +82,18 @@ const VideoPage = ({ currentUser }) => {
     }, 0);
   };
 
+  const handleNavigateToProfile = (profilePath) => {
+    // Сначала скрываем плеер
+    setIsPlayerVisible(false);
+    // Закрываем модальное окно комментариев, если открыто
+    setShowCommentsModal(false);
+    // Затем выполняем навигацию на профиль
+    // Используем небольшую задержку для плавного закрытия плеера
+    setTimeout(() => {
+      navigate(profilePath);
+    }, 50); // Минимальная задержка для плавного закрытия
+  };
+
   const goNext = () => {
     if (!userVideos || userVideos.length === 0) return;
     if (currentIndex === -1) return;
@@ -173,6 +185,7 @@ const VideoPage = ({ currentUser }) => {
             video={video} 
             currentUser={currentUser}
             onClose={handleClose}
+            onNavigateToProfile={handleNavigateToProfile}
             onPrev={userVideos.length > 1 ? goPrev : undefined}
             onNext={userVideos.length > 1 ? goNext : undefined}
             hasPrev={userVideos.length > 1}
