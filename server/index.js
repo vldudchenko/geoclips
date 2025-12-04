@@ -38,8 +38,7 @@ const apiRoutes = require('./routes/api');
 const videoRoutes = require('./routes/video');
 const adminRoutes = require('./routes/index'); // Модульная структура админки
 
-// Утилиты
-const { ensureUploadDirs } = require('./utils/fileUtils');
+// Утилиты удалены - теперь используется только Supabase Storage
 
 // Создаем приложение
 const app = express();
@@ -121,12 +120,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Статические файлы
-app.use('/uploads', express.static('uploads', {
-  setHeaders: (res) => {
-    res.setHeader('Cache-Control', 'public, max-age=3600, immutable');
-  }
-}));
+// Статические файлы удалены - теперь используется только Supabase Storage
 
 // Обработка статических файлов для Hot Module Replacement (только в режиме разработки)
 if (config.nodeEnv !== 'production') {
@@ -169,12 +163,15 @@ app.use(handleMulterError);
 if (config.nodeEnv === 'production') {
   const clientBuildPath = path.join(__dirname, '../client/build');
   app.use(express.static(clientBuildPath));
-  // SPA fallback для всех путей, кроме API/ADMIN/UPLOADS
+  // SPA fallback для всех путей, кроме API/AUTH
+  // /admin теперь обрабатывается через роут с проверкой прав, но в итоге отдает SPA
   app.get('*', (req, res, next) => {
     const p = req.path || '';
-    if (p.startsWith('/api') || p.startsWith('/auth') || p.startsWith('/admin') || p.startsWith('/uploads')) {
+    if (p.startsWith('/api') || p.startsWith('/auth')) {
       return next();
     }
+    // /admin обрабатывается отдельным роутом с проверкой прав, но если запрос дошел сюда,
+    // значит это не /admin или проверка прав не прошла, отдаем SPA
     res.sendFile(path.join(clientBuildPath, 'index.html'));
   });
 }
@@ -185,10 +182,7 @@ app.use(notFoundHandler);
 // Общий обработчик ошибок
 app.use(errorHandler);
 
-// Инициализация директорий для загрузок
-ensureUploadDirs().catch(error => {
-  logger.error('SERVER', 'Ошибка создания директорий', error);
-});
+// Инициализация директорий для загрузок удалена - теперь используется только Supabase Storage
 
 // Запуск сервера
 app.listen(config.port, '0.0.0.0', () => {

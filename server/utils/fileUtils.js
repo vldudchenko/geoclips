@@ -1,24 +1,10 @@
 /**
  * Утилиты для работы с файлами
+ * Логика загрузки файлов удалена - теперь используется только Supabase Storage
  */
 
 const fs = require('fs').promises;
 const logger = require('./logger');
-
-/**
- * Создание директорий для загрузок
- */
-const ensureUploadDirs = async () => {
-  const dirs = ['uploads', 'uploads/videos', 'uploads/thumbnails', 'uploads/avatars'];
-  
-  for (const dir of dirs) {
-    try {
-      await fs.access(dir);
-    } catch {
-      await fs.mkdir(dir, { recursive: true });
-    }
-  }
-};
 
 /**
  * Удаление временного файла
@@ -45,7 +31,6 @@ const fileExists = async (filePath) => {
 };
 
 module.exports = {
-  ensureUploadDirs,
   deleteTempFile,
   fileExists
 };

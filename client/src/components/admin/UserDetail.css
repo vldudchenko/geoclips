@@ -1,0 +1,424 @@
+/* Стили детальной страницы пользователя */
+.admin-user-detail {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Заголовок */
+.admin-user-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: white;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.admin-user-detail-info {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.admin-user-detail-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.admin-user-detail-text {
+  flex: 1;
+}
+
+.admin-user-detail-name {
+  margin: 0 0 0.5rem 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.admin-user-detail-full-name {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.125rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.admin-user-detail-id {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.admin-user-detail-id code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  background: #f1f5f9;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.admin-user-detail-date {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.admin-user-detail-actions {
+  display: flex;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+/* Табы */
+.admin-user-detail-tabs {
+  display: flex;
+  background: white;
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  gap: 0.5rem;
+  overflow-x: auto;
+}
+
+.admin-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.admin-tab:hover {
+  background: #f8fafc;
+  color: #374151;
+}
+
+.admin-tab.active {
+  background: #3b82f6;
+  color: white;
+}
+
+/* Контент */
+.admin-user-detail-content {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+/* Обзор */
+.admin-user-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.admin-user-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.admin-user-stat-card {
+  background: #f8fafc;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+.admin-user-stat-card:hover {
+  background: #f1f5f9;
+  transform: translateY(-1px);
+}
+
+.admin-user-stat-icon {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.admin-user-stat-content h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.admin-user-stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 1rem;
+  line-height: 1;
+}
+
+.admin-user-stat-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #3b82f6;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.admin-user-stat-link:hover {
+  color: #2563eb;
+}
+
+/* Последние разделы */
+.admin-user-recent-section {
+  margin-top: 2rem;
+}
+
+.admin-user-recent-section h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.admin-user-recent-videos {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.admin-user-recent-video {
+  background: #f8fafc;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+.admin-user-recent-video:hover {
+  background: #f1f5f9;
+  transform: translateY(-1px);
+}
+
+.admin-user-recent-video-link {
+  display: block;
+  padding: 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.admin-user-recent-video-info h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.admin-user-recent-video-stats {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.admin-user-recent-video-info time {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+/* Видео пользователя */
+.admin-user-videos h3 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.admin-user-videos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.admin-user-video-card {
+  background: #f8fafc;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+.admin-user-video-card:hover {
+  background: #f1f5f9;
+  transform: translateY(-1px);
+}
+
+.admin-user-video-link {
+  display: block;
+  padding: 1.5rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.admin-user-video-info h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.admin-user-video-stats {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.admin-user-video-info time {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+/* Комментарии */
+.admin-user-comments h3 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.admin-user-comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-user-comment-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  background: #f8fafc;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-user-comment-content {
+  flex: 1;
+}
+
+.admin-user-comment-content p {
+  margin: 0 0 1rem 0;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.admin-user-comment-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-user-comment-video {
+  font-size: 0.875rem;
+  color: #3b82f6;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.admin-user-comment-video:hover {
+  color: #2563eb;
+}
+
+.admin-user-comment-meta time {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+/* Пустое состояние */
+.admin-user-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #64748b;
+}
+
+.admin-user-empty p {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .admin-user-detail-header {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  
+  .admin-user-detail-info {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .admin-user-detail-actions {
+    align-self: stretch;
+    justify-content: center;
+  }
+  
+  .admin-user-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .admin-user-videos-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .admin-user-comment-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .admin-user-detail-tabs {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-user-detail-header {
+    padding: 1.5rem;
+  }
+  
+  .admin-user-detail-content {
+    padding: 1.5rem;
+  }
+  
+  .admin-user-detail-name {
+    font-size: 1.5rem;
+  }
+  
+  .admin-user-recent-video-stats,
+  .admin-user-video-stats {
+    flex-wrap: wrap;
+  }
+}

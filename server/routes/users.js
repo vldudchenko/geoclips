@@ -99,7 +99,10 @@ router.get('/', requireAdmin, apiResponse.asyncHandler(async (req, res) => {
     } : null
   });
 
-  apiResponse.sendSuccess(res, { users: processedUsers });
+  apiResponse.sendSuccess(res, { 
+    users: processedUsers,
+    total: processedUsers.length 
+  });
 }));
 
 /**
@@ -146,12 +149,18 @@ router.get('/search', requireAdmin, apiResponse.asyncHandler(async (req, res) =>
     videosCount: videosCounts[user.id] || 0
   })) : [];
 
-  apiResponse.sendSuccess(res, apiResponse.formatPaginatedResponse(
+  const paginatedResponse = apiResponse.formatPaginatedResponse(
     processedUsers,
     count,
     parseInt(limit),
     parseInt(offset)
-  ));
+  );
+  
+  apiResponse.sendSuccess(res, { 
+    users: paginatedResponse.data,
+    total: paginatedResponse.pagination.total,
+    pagination: paginatedResponse.pagination
+  });
 }));
 
 /**

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import './Comments.css';
 import { API_BASE_URL } from '../utils/constants';
 
@@ -17,44 +17,32 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
       setLoading(true);
       setError(null);
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/comments/video/${videoId}?limit=100`,
-        { credentials: 'include' }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/comments/video/${videoId}?limit=100`, { 
+        credentials: 'include' 
+      });
 
-      if (!response.ok) {
-        throw new Error('Ошибка загрузки комментариев');
-      }
+      if (!response.ok) throw new Error('Ошибка загрузки комментариев');
 
       const data = await response.json();
       setComments(data.comments || []);
       
-      // Обновляем счетчик комментариев если он пришел с сервера
-      if (data.total !== undefined && onCommentsCountChange) {
-        onCommentsCountChange(data.total);
-      }
+      if (data.total !== undefined) onCommentsCountChange?.(data.total);
     } catch (err) {
-      console.error('Ошибка загрузки комментариев:', err);
       setError('Не удалось загрузить комментарии');
     } finally {
       setLoading(false);
     }
-  }, [videoId]);
+  }, [videoId, onCommentsCountChange]);
 
   useEffect(() => {
-    if (videoId) {
-      loadComments();
-    }
+    if (videoId) loadComments();
   }, [videoId, loadComments]);
 
-  // Уведомляем родителя об изменении количества комментариев
   useEffect(() => {
-    if (onCommentsCountChange) {
-      onCommentsCountChange(comments.length);
-    }
+    onCommentsCountChange?.(comments.length);
   }, [comments.length, onCommentsCountChange]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
 
     if (!currentUser) {
@@ -62,11 +50,9 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
       return;
     }
 
-    if (!newComment.trim()) {
-      return;
-    }
-
-    if (newComment.length > 1000) {
+    const trimmedComment = newComment.trim();
+    if (!trimmedComment) return;
+    if (trimmedComment.length > 1000) {
       alert('Комментарий не может быть длиннее 1000 символов');
       return;
     }
@@ -75,90 +61,64 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
       setSubmitting(true);
       setError(null);
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/comments/video/${videoId}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include',
-          body: JSON.stringify({ text: newComment.trim() })
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/comments/video/${videoId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ text: trimmedComment })
+      });
 
-      if (!response.ok) {
-        throw new Error('Ошибка добавления комментария');
-      }
+      if (!response.ok) throw new Error('Ошибка добавления комментария');
 
       const data = await response.json();
-      
-      // Добавляем новый комментарий в начало списка
-      setComments([data.comment, ...comments]);
+      setComments(prev => [data.comment, ...prev]);
       setNewComment('');
       
-      // Обновляем счетчик комментариев если он пришел с сервера
-      if (data.commentsCount !== undefined && onCommentsCountChange) {
-        onCommentsCountChange(data.commentsCount);
-      }
+      if (data.commentsCount !== undefined) onCommentsCountChange?.(data.commentsCount);
     } catch (err) {
-      console.error('Ошибка добавления комментария:', err);
       alert('Не удалось добавить комментарий. Попробуйте позже.');
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [currentUser, newComment, videoId, onCommentsCountChange]);
 
-  const handleDelete = async (commentId) => {
-    if (!window.confirm('Удалить этот комментарий?')) {
-      return;
-    }
+  const handleDelete = useCallback(async (commentId) => {
+    if (!window.confirm('Удалить этот комментарий?')) return;
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/comments/${commentId}`,
-        {
-          method: 'DELETE',
-          credentials: 'include'
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
 
-      if (!response.ok) {
-        throw new Error('Ошибка удаления комментария');
-      }
+      if (!response.ok) throw new Error('Ошибка удаления комментария');
 
       const data = await response.json();
-
-      // Удаляем комментарий из списка
-      setComments(comments.filter(c => c.id !== commentId));
+      setComments(prev => prev.filter(c => c.id !== commentId));
       
-      // Обновляем счетчик комментариев если он пришел с сервера
-      if (data.commentsCount !== undefined && onCommentsCountChange) {
-        onCommentsCountChange(data.commentsCount);
-      }
+      if (data.commentsCount !== undefined) onCommentsCountChange?.(data.commentsCount);
     } catch (err) {
-      console.error('Ошибка удаления комментария:', err);
       alert('Не удалось удалить комментарий');
     }
-  };
+  }, [onCommentsCountChange]);
 
-  const handleEdit = (comment) => {
+  const handleEdit = useCallback((comment) => {
     setEditingCommentId(comment.id);
     setEditingText(comment.text);
-  };
+  }, []);
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     setEditingCommentId(null);
     setEditingText('');
-  };
+  }, []);
 
-  const handleSaveEdit = async (commentId) => {
-    if (!editingText.trim()) {
+  const handleSaveEdit = useCallback(async (commentId) => {
+    const trimmedText = editingText.trim();
+    if (!trimmedText) {
       alert('Комментарий не может быть пустым');
       return;
     }
-
-    if (editingText.length > 1000) {
+    if (trimmedText.length > 1000) {
       alert('Комментарий не может быть длиннее 1000 символов');
       return;
     }
@@ -167,17 +127,12 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
       setSaving(true);
       setError(null);
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/comments/${commentId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include',
-          body: JSON.stringify({ text: editingText.trim() })
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ text: trimmedText })
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -185,26 +140,19 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
       }
 
       const data = await response.json();
-      
-      // Обновляем комментарий в списке
-      // Ответ от сервера имеет структуру: { success: true, comment: {...} }
       const updatedComment = data.comment || data;
-      setComments(comments.map(c => 
-        c.id === commentId ? updatedComment : c
-      ));
+      setComments(prev => prev.map(c => c.id === commentId ? updatedComment : c));
       
-      // Сбрасываем состояние редактирования
       setEditingCommentId(null);
       setEditingText('');
-      setSaving(false);
     } catch (err) {
-      console.error('Ошибка обновления комментария:', err);
       alert('Не удалось обновить комментарий: ' + err.message);
+    } finally {
       setSaving(false);
     }
-  };
+  }, [editingText]);
 
-  const formatDate = (dateString) => {
+  const formatDate = useCallback((dateString) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now - date;
@@ -222,7 +170,7 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
       month: 'short',
       year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
     });
-  };
+  }, []);
 
   return (
     <div className={`comments-section ${isModal ? 'modal-mode' : ''}`}>
@@ -385,5 +333,5 @@ const Comments = ({ videoId, currentUser, onCommentsCountChange, isModal = false
   );
 };
 
-export default Comments;
+export default memo(Comments);
 

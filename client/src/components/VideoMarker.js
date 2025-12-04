@@ -1,8 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { VideoService } from '../services/videoService';
 import './VideoMarker.css';
 
-const VideoMarker = ({ video, onClose }) => {
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('ru-RU', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+const VideoMarker = React.memo(({ video, onClose }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(video.likes_count);
@@ -16,7 +27,6 @@ const VideoMarker = ({ video, onClose }) => {
       if (latParam && lonParam && video?.latitude != null && video?.longitude != null) {
         const lat = parseFloat(latParam);
         const lon = parseFloat(lonParam);
-        // Сравнение с небольшим допуском (~50м)
         const dLat = Math.abs(lat - Number(video.latitude));
         const dLon = Math.abs(lon - Number(video.longitude));
         if (dLat < 0.0005 && dLon < 0.0005) {
@@ -28,15 +38,10 @@ const VideoMarker = ({ video, onClose }) => {
     } catch {}
   }, [video]);
 
-  const handlePlay = () => {
-    setIsPlaying(true);
-  };
+  const handlePlay = useCallback(() => setIsPlaying(true), []);
+  const handlePause = useCallback(() => setIsPlaying(false), []);
 
-  const handlePause = () => {
-    setIsPlaying(false);
-  };
-
-  const handleLike = async () => {
+  const handleLike = useCallback(async () => {
     try {
       if (isLiked) {
         await VideoService.unlikeVideo(video.id, video.user_id);
@@ -50,18 +55,9 @@ const VideoMarker = ({ video, onClose }) => {
     } catch (error) {
       console.error('Ошибка при лайке:', error);
     }
-  };
+  }, [isLiked, video.id, video.user_id]);
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ru-RU', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const formattedDate = useMemo(() => formatDate(video.created_at), [video.created_at]);
 
   return (
     <div className={`video-marker-popup${highlight ? ' highlight' : ''}`}>
@@ -77,7 +73,7 @@ const VideoMarker = ({ video, onClose }) => {
               {video.users?.display_name || 'Пользователь'}
             </div>
             <div className="video-marker-date">
-              {formatDate(video.created_at)}
+              {formattedDate}
             </div>
           </div>
         </div>
@@ -129,6 +125,6 @@ const VideoMarker = ({ video, onClose }) => {
       </div>
     </div>
   );
-};
+});
 
 export default VideoMarker;

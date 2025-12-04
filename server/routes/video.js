@@ -152,22 +152,7 @@ router.delete('/:videoId', requireAuth, apiResponse.asyncHandler(async (req, res
     });
   }
 
-  // Удаляем файлы видео
-  try {
-    if (video.video_url) {
-      const videoPath = video.video_url.replace(`${config.baseUrl}/uploads/videos/`, 'uploads/videos/');
-      try {
-        await fs.unlink(videoPath);        
-      } catch (unlinkError) {
-        logger.warn('VIDEO', 'Не удалось удалить файл видео', { 
-          videoPath, 
-          error: unlinkError.message 
-        });
-      }
-    }
-  } catch (fileError) {
-    logger.warn('VIDEO', 'Ошибка удаления файлов', fileError);
-  }
+  // Файлы видео хранятся в Supabase Storage, удаление происходит автоматически при удалении записи из БД
    
   apiResponse.sendSuccess(res, {
     message: 'Видео успешно удалено',

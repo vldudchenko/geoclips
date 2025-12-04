@@ -1,0 +1,22 @@
+/* Стили для компонента VideoDetail */
+.video-detail {
+  padding: 20px;
+}
+
+.video-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.video-detail-content {
+  background: #f5f5f5;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.video-detail-content p {
+  margin: 10px 0;
+}
+

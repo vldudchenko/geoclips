@@ -19,6 +19,115 @@ const { isValidCoordinates, calculateDistance } = require('../utils/geoUtils');
 const commentsRoutes = require('./comments');
 
 /**
+ * Проверка прав администратора
+ * GET /api/admin/check-access
+ */
+router.get('/admin/check-access', async (req, res) => {
+  try {
+    // Проверяем, авторизован ли пользователь
+    if (!req.isAuthenticated() || !req.user) {
+      return res.json({ success: true, isAdmin: false });
+    }
+
+    // Получаем ID пользователя
+    const userId = req.user.dbUser?.id || req.user.id;
+    
+    if (!userId) {
+      return res.json({ success: true, isAdmin: false });
+    }
+
+    // Проверяем, есть ли ID пользователя в списке администраторов
+    const isAdmin = config.admin.ids.includes(userId);
+    
+    logger.info('ADMIN', 'Проверка прав администратора', { 
+      userId, 
+      isAdmin,
+      adminIds: config.admin.ids 
+    });
+
+    res.json({ success: true, isAdmin });
+  } catch (error) {
+    logger.error('API', 'Ошибка проверки прав администратора', error);
+    res.json({ success: true, isAdmin: false });
+  }
+});
+
+/**
+ * Статистика для дашборда
+ * GET /api/admin/dashboard/stats
+ */
+router.get('/admin/dashboard/stats', async (req, res) => {
+  try {
+    // Получаем общую статистику
+    const [usersCount, videosCount, commentsCount, tagsCount] = await Promise.all([
+      supabase.from('users').select('*', { count: 'exact', head: true }),
+      supabase.from('videos').select('*', { count: 'exact', head: true }),
+      supabase.from('comments').select('*', { count: 'exact', head: true }),
+      supabase.from('tags').select('*', { count: 'exact', head: true })
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        usersCount: usersCount.count || 0,
+        videosCount: videosCount.count || 0,
+        commentsCount: commentsCount.count || 0,
+        tagsCount: tagsCount.count || 0
+      }
+    });
+  } catch (error) {
+    logger.error('API', 'Ошибка получения статистики дашборда', error);
+    res.status(500).json({ error: 'Ошибка получения статистики' });
+  }
+});
+
+/**
+ * Последние активности для дашборда
+ * GET /api/admin/dashboard/activities
+ */
+router.get('/admin/dashboard/activities', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+
+    // Получаем последние видео как активности
+    const { data: videos, error } = await supabase
+      .from('videos')
+      .select(`
+        id,
+        description,
+        created_at,
+        users (
+          id,
+          display_name
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      throw error;
+    }
+
+    // Форматируем активности
+    const activities = videos.map(video => ({
+      id: video.id,
+      type: 'video',
+      description: `Новое видео: ${video.description || 'Без описания'}`,
+      user: video.users?.display_name || 'Неизвестный',
+      createdAt: video.created_at
+    }));
+
+    res.json({
+      success: true,
+      data: activities
+    });
+  } catch (error) {
+    logger.error('API', 'Ошибка получения активностей дашборда', error);
+    res.status(500).json({ error: 'Ошибка получения активностей' });
+  }
+});
+
+/**
  * Геокодирование адреса
  */
 router.post('/geocode', validateAddress, async (req, res) => {
@@ -694,7 +803,23 @@ router.get('/videos/near', async (req, res) => {
 
     const { data, error } = await supabase
       .from('videos')
-      .select('id, user_id, description, video_url, latitude, longitude, likes_count, views_count, created_at')
+      .select(`
+        id,
+        user_id,
+        description,
+        video_url,
+        latitude,
+        longitude,
+        likes_count,
+        views_count,
+        created_at,
+        users (
+          id,
+          yandex_id,
+          display_name,
+          avatar_url
+        )
+      `)
       .not('latitude', 'is', null)
       .not('longitude', 'is', null)
       .gte('latitude', minLat)
@@ -723,8 +848,307 @@ router.get('/videos/near', async (req, res) => {
   }
 });
 
+/**
+ * Получение пользователя по ID
+ * GET /api/users/:id
+ */
+router.get('/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) {
+      logger.error('API', 'Ошибка получения пользователя по ID', error);
+      return res.status(500).json({ error: 'Ошибка получения пользователя' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    res.json({ success: true, user });
+  } catch (error) {
+    logger.error('API', 'Ошибка получения пользователя по ID', error);
+    res.status(500).json({ error: 'Ошибка сервера при получении пользователя' });
+  }
+});
+
+/**
+ * Получение пользователя по display_name
+ * GET /api/users/by-display-name/:displayName
+ */
+router.get('/users/by-display-name/:displayName', async (req, res) => {
+  try {
+    const { displayName } = req.params;
+    
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
+      .eq('display_name', displayName)
+      .maybeSingle();
+
+    if (error) {
+      logger.error('API', 'Ошибка получения пользователя по display_name', error);
+      return res.status(500).json({ error: 'Ошибка получения пользователя' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    res.json({ success: true, user });
+  } catch (error) {
+    logger.error('API', 'Ошибка получения пользователя по display_name', error);
+    res.status(500).json({ error: 'Ошибка сервера при получении пользователя' });
+  }
+});
+
+/**
+ * Получение пользователя по yandex_id
+ * GET /api/users/by-yandex-id/:yandexId
+ */
+router.get('/users/by-yandex-id/:yandexId', async (req, res) => {
+  try {
+    const { yandexId } = req.params;
+    
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
+      .eq('yandex_id', yandexId)
+      .maybeSingle();
+
+    if (error) {
+      logger.error('API', 'Ошибка получения пользователя по yandex_id', error);
+      return res.status(500).json({ error: 'Ошибка получения пользователя' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    res.json({ success: true, user });
+  } catch (error) {
+    logger.error('API', 'Ошибка получения пользователя по yandex_id', error);
+    res.status(500).json({ error: 'Ошибка сервера при получении пользователя' });
+  }
+});
+
+/**
+ * Получение видео по ID
+ * GET /api/videos/:id
+ */
+router.get('/videos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data: video, error } = await supabase
+      .from('videos')
+      .select(`
+        id,
+        user_id,
+        description,
+        video_url,
+        latitude,
+        longitude,
+        likes_count,
+        views_count,
+        comments_count,
+        created_at,
+        users (
+          id,
+          yandex_id,
+          display_name,
+          avatar_url
+        ),
+        video_tags (
+          tags (
+            id,
+            name,
+            usage_count
+          )
+        )
+      `)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) {
+      logger.error('API', 'Ошибка получения видео по ID', error);
+      return res.status(500).json({ error: 'Ошибка получения видео' });
+    }
+
+    if (!video) {
+      return res.status(404).json({ error: 'Видео не найдено' });
+    }
+
+    // Обрабатываем теги
+    const processedVideo = {
+      ...video,
+      tags: video.video_tags?.map(vt => vt.tags).filter(Boolean) || []
+    };
+    delete processedVideo.video_tags;
+
+    res.json({ success: true, video: processedVideo });
+  } catch (error) {
+    logger.error('API', 'Ошибка получения видео по ID', error);
+    res.status(500).json({ error: 'Ошибка сервера при получении видео' });
+  }
+});
+
+/**
+ * Получение тегов видео
+ * GET /api/videos/:id/tags
+ */
+router.get('/videos/:id/tags', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const dbUtils = require('../utils/dbUtils');
+    const tags = await dbUtils.getVideoTags(id);
+
+    res.json({ success: true, tags: tags || [] });
+  } catch (error) {
+    logger.error('API', 'Ошибка получения тегов видео', error);
+    res.status(500).json({ error: 'Ошибка сервера при получении тегов' });
+  }
+});
+
+/**
+ * Получение всех видео
+ * GET /api/videos
+ */
+router.get('/videos', async (req, res) => {
+  try {
+    const { data: videos, error } = await supabase
+      .from('videos')
+      .select(`
+        id,
+        user_id,
+        description,
+        video_url,
+        latitude,
+        longitude,
+        likes_count,
+        views_count,
+        comments_count,
+        created_at,
+        users (
+          id,
+          yandex_id,
+          display_name,
+          avatar_url
+        ),
+        video_tags (
+          tags (
+            id,
+            name,
+            usage_count
+          )
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('API', 'Ошибка получения всех видео', error);
+      return res.status(500).json({ error: 'Ошибка получения видео' });
+    }
+
+    // Обрабатываем теги для каждого видео
+    const processedVideos = (videos || []).map(video => ({
+      ...video,
+      tags: video.video_tags?.map(vt => vt.tags).filter(Boolean) || []
+    })).map(({ video_tags, ...rest }) => rest);
+
+    res.json({ success: true, videos: processedVideos });
+  } catch (error) {
+    logger.error('API', 'Ошибка получения всех видео', error);
+    res.status(500).json({ error: 'Ошибка сервера при получении видео' });
+  }
+});
+
+/**
+ * Обновление endpoint для получения видео по радиусу - добавляем join с пользователями
+ */
+// Обновляем существующий endpoint /videos/near, чтобы он возвращал данные с join пользователей
+// Это уже сделано выше, но нужно убедиться, что join есть
+
+/**
+ * Получение всех тегов (публичный endpoint)
+ * GET /api/tags
+ */
+router.get('/tags', async (req, res) => {
+  try {
+    const { data: tags, error } = await supabase
+      .from('tags')
+      .select('id, name, usage_count, created_at')
+      .order('usage_count', { ascending: false })
+      .order('name');
+
+    if (error) {
+      logger.error('API', 'Ошибка получения тегов', error);
+      return res.status(500).json({ error: 'Ошибка получения тегов' });
+    }
+
+    res.json({ success: true, tags: tags || [] });
+  } catch (error) {
+    logger.error('API', 'Ошибка получения тегов', error);
+    res.status(500).json({ error: 'Ошибка сервера при получении тегов' });
+  }
+});
+
+/**
+ * Получить или создать тег (публичный endpoint для клиента)
+ * POST /api/tags/get-or-create
+ */
+router.post('/tags/get-or-create', requireAuth, async (req, res) => {
+  try {
+    const { name } = req.body;
+    const currentUserId = req.user?.dbUser?.id;
+
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Название тега обязательно' });
+    }
+
+    const tagName = name.trim();
+
+    // Используем dbUtils для получения или создания тега
+    const dbUtils = require('../utils/dbUtils');
+    const tag = await dbUtils.getOrCreateTag(tagName, currentUserId);
+
+    res.json({ success: true, tag });
+  } catch (error) {
+    logger.error('API', 'Ошибка получения или создания тега', error);
+    res.status(500).json({ error: 'Ошибка сервера при получении или создании тега' });
+  }
+});
+
+/**
+ * Загрузка видео файла
+ * POST /api/videos/upload
+ * ВАЖНО: Этот endpoint должен быть реализован в routes/video.js
+ * Здесь оставляем заглушку для совместимости
+ */
+router.post('/videos/upload', requireAuth, async (req, res) => {
+  try {
+    // Перенаправляем на существующий endpoint в routes/video.js
+    // Или реализуем здесь, если нужно
+    res.status(501).json({ error: 'Endpoint для загрузки видео должен быть реализован в /api/video/upload' });
+  } catch (error) {
+    logger.error('API', 'Ошибка загрузки видео', error);
+    res.status(500).json({ error: 'Ошибка сервера при загрузке видео' });
+  }
+});
+
 // Подключаем маршруты комментариев
 router.use('/comments', commentsRoutes);
+
+// Подключаем маршруты пользователей (для админки)
+const usersRoutes = require('./users');
+router.use('/users', usersRoutes);
 
 module.exports = router;
 

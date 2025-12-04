@@ -1,46 +1,35 @@
 /**
- * Основные роуты админ панели (главная страница, статика, тест)
+ * Основные роуты админ панели
+ * Теперь админка находится в клиентской части, этот роут только проверяет права и редиректит
  */
 
 const express = require('express');
 const router = express.Router();
-const path = require('path');
-const { readFile, access } = require('fs').promises;
+const config = require('../config/environment');
 const logger = require('../utils/logger');
-const { requireAdmin } = require('../middleware/unified');
+const { requireAdmin, requireAuth } = require('../middleware/unified');
 
 /**
- * Главная страница админки
+ * Главная страница админки - редирект на клиентскую админку
+ * Проверяет права администратора и редиректит на клиентскую админку
  */
 router.get('/', requireAdmin, async (req, res) => {
   try {
-
+    logger.info('ADMIN', 'Запрос к админке - редирект на клиентскую админку');
     
-    logger.info('ADMIN', 'Запрос к админке');
-    
-    // На этом этапе пользователь уже авторизован и имеет права администратора
-    // (проверено в requireAdmin middleware)
-    
-    try {
-      const htmlPath = path.join(__dirname, '../views/admin.html');
-      logger.info('ADMIN', 'Загрузка админки');
-      
-      // Проверяем существование файла
-      try {
-        await access(htmlPath);
-      } catch (accessError) {
-        logger.error('ADMIN', 'Файл админки не найден', { htmlPath, error: accessError.message });
-        throw new Error(`Файл админки не найден: ${htmlPath}`);
-      }
-      
-      const html = await readFile(htmlPath, 'utf-8');
-      res.send(html);
-      logger.success('ADMIN', 'Админка загружена');
-    } catch (fileError) {
-      logger.error('ADMIN', 'Ошибка чтения файла админки', fileError);      
+    // В production режиме отдаем SPA (index.html), клиент сам обработает роут /admin
+    // В development режиме редиректим на клиентский сервер
+    if (config.nodeEnv === 'production') {
+      const path = require('path');
+      const clientBuildPath = path.join(__dirname, '../../client/build');
+      res.sendFile(path.join(clientBuildPath, 'index.html'));
+    } else {
+      // В development режиме редиректим на клиентский сервер
+      const clientUrl = config.clientUrl || 'http://localhost:3000';
+      res.redirect(`${clientUrl}/admin`);
     }
   } catch (error) {
-    logger.error('ADMIN', 'Ошибка загрузки админ панели', { 
+    logger.error('ADMIN', 'Ошибка редиректа на клиентскую админку', { 
       message: error.message, 
       stack: error.stack,
       userId: req.user?.dbUser?.id
@@ -49,9 +38,9 @@ router.get('/', requireAdmin, async (req, res) => {
       <html>
         <body style="font-family: Arial, sans-serif; padding: 20px;">
           <h1>Ошибка админки</h1>
-          <p>Произошла ошибка при загрузке админ панели.</p>
+          <p>Произошла ошибка при переходе в админ панель.</p>
           <p>Ошибка: ${error.message}</p>
-          <a href="/admin">Попробовать снова</a>
+          <a href="/">Вернуться на главную</a>
         </body>
       </html>
     `);
@@ -59,30 +48,20 @@ router.get('/', requireAdmin, async (req, res) => {
 });
 
 /**
- * CSS файл админки
+ * Проверка прав доступа к админке (для клиента)
  */
-router.get('/admin.css', async (req, res) => {
+router.get('/check-access', requireAuth, (req, res) => {
   try {
-    const cssPath = path.join(__dirname, '../views/admin.css');
-    const css = await readFile(cssPath, 'utf-8');
-    res.type('text/css').send(css);
+    const adminIds = config.admin.ids;
+    const userId = req.user?.dbUser?.id;
+    
+    // Если ADMIN_IDS не задана, разрешаем доступ всем авторизованным пользователям
+    const hasAccess = adminIds.length === 0 || adminIds.includes(userId);
+    
+    res.json({ success: hasAccess });
   } catch (error) {
-    logger.error('ADMIN', 'Ошибка загрузки CSS', error);
-    res.status(500).send('/* Ошибка загрузки CSS */');
-  }
-});
-
-/**
- * JS файл админки (объединенный)
- */
-router.get('/admin-unified.js', async (req, res) => {
-  try {
-    const jsPath = path.join(__dirname, '../views/admin-unified.js');
-    const js = await readFile(jsPath, 'utf-8');
-    res.type('application/javascript').send(js);
-  } catch (error) {
-    logger.error('ADMIN', 'Ошибка загрузки JS', error);
-    res.status(500).send('// Ошибка загрузки JS');
+    logger.error('ADMIN', 'Ошибка проверки прав доступа', error);
+    res.status(500).json({ success: false, error: 'Ошибка проверки прав доступа' });
   }
 });
 

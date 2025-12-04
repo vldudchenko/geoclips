@@ -5,7 +5,7 @@ import { UserService } from '../services/userService';
 import { ServerApi } from '../services/serverApi';
 import './VideoPlayer.css';
 
-const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = false, hasNext = false, authorDisplayName, authorAvatar, onOpenComments, commentsCount = 0, onCommentsCountChange, onNavigateToProfile }) => {
+const VideoPlayer = React.memo(({ video, onClose, currentUser, onPrev, onNext, hasPrev = false, hasNext = false, authorDisplayName, authorAvatar, onOpenComments, commentsCount = 0, onCommentsCountChange, onNavigateToProfile, onNavigateToMap }) => {
   const videoRef = useRef(null);
   const lastNavRef = useRef(0);
   const navigate = useNavigate();
@@ -20,143 +20,109 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
   const [videoTags, setVideoTags] = useState([]);
   const [currentCommentsCount, setCurrentCommentsCount] = useState(commentsCount);
   const [volume, setVolume] = useState(() => {
-    // Загружаем сохраненную громкость из localStorage
     const savedVolume = localStorage.getItem('videoVolume');
-    return savedVolume ? parseFloat(savedVolume) : 0;
+    return savedVolume ? parseFloat(savedVolume) : 0.5;
   });
 
-  // Получаем данные пользователя как в профиле
   useEffect(() => {
     if (video?.users) {
-      const userData = {
-        display_name: video.users.display_name || 'Пользователь',
-        avatar_url: video.users.avatar_url
-      };
-      setUserDisplayName(userData.display_name);
-      setUserAvatar(userData.avatar_url);
+      setUserDisplayName(video.users.display_name || 'Пользователь');
+      setUserAvatar(video.users.avatar_url);
       return;
     }
     if (authorDisplayName) setUserDisplayName(authorDisplayName);
     if (authorAvatar) setUserAvatar(authorAvatar);
   }, [video, authorDisplayName, authorAvatar]);
 
-  // Загружаем теги для видео
   useEffect(() => {
     const loadVideoTags = async () => {
       if (!video?.id) return;
-      
       try {
         const tags = await VideoService.getVideoTags(video.id);
         setVideoTags(tags || []);
       } catch (error) {
-        console.error('Ошибка при загрузке тегов:', error);
         setVideoTags([]);
       }
     };
-
     loadVideoTags();
   }, [video?.id]);
 
-  // Загружаем состояние лайка при открытии видео
   useEffect(() => {
     const loadLikeStatus = async () => {
       if (!video?.id) return;
       try {
         const liked = await VideoService.isVideoLiked(video.id);
         setIsLiked(liked);
-      } catch (error) {
-        console.error('Ошибка при загрузке состояния лайка:', error);
+      } catch {
         setIsLiked(false);
       }
     };
     loadLikeStatus();
   }, [video?.id]);
 
-  // Обновляем счетчик комментариев при изменении пропса
-  useEffect(() => {
-    setCurrentCommentsCount(commentsCount);
-  }, [commentsCount]);
+  useEffect(() => setCurrentCommentsCount(commentsCount), [commentsCount]);
 
 
   const handleClickOutside = (e) => {
-    // Проверяем, что клик именно по overlay, а не по его дочерним элементам
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+    if (e.target === e.currentTarget) onClose();
   };
 
   const handlePlayPause = async () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-        setIsPlaying(false);
-      } else {
-        try {
-          await videoRef.current.play();
-          setIsPlaying(true);
-        } catch (error) {
-          // Игнорируем ошибки воспроизведения при удалении элемента
-          if (error.name !== 'AbortError') {
-            console.warn('Ошибка воспроизведения видео:', error);
-          }
-        }
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      try {
+        await videoRef.current.play();
+        setIsPlaying(true);
+      } catch (error) {
+        if (error.name !== 'AbortError') console.warn('Playback error:', error);
       }
     }
   };
 
-  // Автоматически запускаем видео при загрузке
   useEffect(() => {
-    if (videoRef.current && video) {
-      const video = videoRef.current;
-      video.volume = volume; // Используем сохраненную громкость
-      video.muted = volume === 0; // Отключаем звук только если громкость 0
-      
-      const playVideo = async () => {
-        try {
-          await video.play();
-          setIsPlaying(true);
-        } catch (error) {
-          // Игнорируем ошибки воспроизведения при удалении элемента или блокировке автовоспроизведения
-          if (error.name !== 'AbortError') {
-            console.warn('Автовоспроизведение заблокировано или ошибка воспроизведения:', error);
-          }
-        }
-      };
-      
-      playVideo();
-    }
+    if (!videoRef.current || !video) return;
+    const videoEl = videoRef.current;
+    videoEl.volume = volume;
+    videoEl.muted = volume === 0;
+    
+    const playVideo = async () => {
+      try {
+        await videoEl.play();
+        setIsPlaying(true);
+      } catch (error) {
+        if (error.name !== 'AbortError') console.warn('Autoplay blocked:', error);
+      }
+    };
+    playVideo();
   }, [video, volume]);
 
-  // Навигация колесом мыши и клавишами (стрелки вверх/вниз)
   useEffect(() => {
     const onWheel = (e) => {
       if (!onPrev && !onNext) return;
       const now = Date.now();
-      if (now - lastNavRef.current < 400) return; // debounce
+      if (now - lastNavRef.current < 400) return;
       if (e.deltaY > 30) {
         lastNavRef.current = now;
-        onNext && onNext();
+        onNext?.();
       } else if (e.deltaY < -30) {
         lastNavRef.current = now;
-        onPrev && onPrev();
+        onPrev?.();
       }
     };
     const onKey = (e) => {
-      // Закрытие плеера по Escape
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
-      
+      if (e.key === 'Escape') return onClose();
       if (!onPrev && !onNext) return;
       const now = Date.now();
       if (now - lastNavRef.current < 250) return;
       if (e.key === 'ArrowDown') {
         lastNavRef.current = now;
-        onNext && onNext();
+        onNext?.();
       } else if (e.key === 'ArrowUp') {
         lastNavRef.current = now;
-        onPrev && onPrev();
+        onPrev?.();
       }
     };
     window.addEventListener('wheel', onWheel, { passive: true });
@@ -169,24 +135,14 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
 
   const handleLike = async () => {
     if (!video?.id || isLiking) return;
-    
     setIsLiking(true);
-    
     try {
-      if (isLiked) {
-        // Убираем лайк
-        const result = await VideoService.unlikeVideo(video.id);
-        setIsLiked(false);
-        setLikesCount(result.likesCount || likesCount - 1);
-      } else {
-        // Добавляем лайк
-        const result = await VideoService.likeVideo(video.id);
-        setIsLiked(true);
-        setLikesCount(result.likesCount || likesCount + 1);
-      }
+      const result = isLiked 
+        ? await VideoService.unlikeVideo(video.id)
+        : await VideoService.likeVideo(video.id);
+      setIsLiked(!isLiked);
+      setLikesCount(result.likesCount || (isLiked ? likesCount - 1 : likesCount + 1));
     } catch (error) {
-      console.error('Ошибка при лайке видео:', error);
-      // Показываем уведомление пользователю
       alert('Ошибка при лайке видео: ' + error.message);
     } finally {
       setIsLiking(false);
@@ -196,7 +152,6 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
   const handleVolumeChange = (e) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    // Сохраняем громкость в localStorage
     localStorage.setItem('videoVolume', newVolume.toString());
     if (videoRef.current) {
       videoRef.current.volume = newVolume;
@@ -204,62 +159,38 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
     }
   };
 
-  const handleVideoClick = () => {
-    handlePlayPause();
-  };
+  const handleVideoClick = handlePlayPause;
 
   const handleAvatarClick = async (e) => {
     e.stopPropagation();
-    
-    // Определяем путь к профилю
     let profilePath = null;
     
-    // Используем уже доступные данные для навигации
-    // Приоритет: video.users.display_name > authorDisplayName > video.user_id
     if (video?.users?.display_name) {
       profilePath = `/profile/${video.users.display_name}`;
     } else if (authorDisplayName) {
       profilePath = `/profile/${authorDisplayName}`;
     } else if (video?.user_id) {
       try {
-        // Получаем данные пользователя из базы данных только если display_name недоступен
         const userData = await UserService.getUserById(video.user_id);
-        
-        if (userData?.display_name) {
-          // Переходим на профиль по display_name
-          profilePath = `/profile/${userData.display_name}`;
-        } else {
-          // Fallback на ID если display_name недоступен
-          profilePath = `/profile/${video.user_id}`;
-        }
-      } catch (error) {
-        console.error('Ошибка при переходе на профиль:', error);
-        // Fallback на ID при ошибке
+        profilePath = userData?.display_name 
+          ? `/profile/${userData.display_name}` 
+          : `/profile/${video.user_id}`;
+      } catch {
         profilePath = `/profile/${video.user_id}`;
       }
     }
     
-    // Если путь определен, используем onNavigateToProfile (если доступен) или navigate
     if (profilePath) {
-      if (onNavigateToProfile) {
-        // Используем callback для закрытия плеера перед навигацией
-        onNavigateToProfile(profilePath);
-      } else {
-        // Fallback на прямую навигацию, если callback не предоставлен
-        navigate(profilePath);
-      }
+      onNavigateToProfile ? onNavigateToProfile(profilePath) : navigate(profilePath);
     }
   };
 
   const handleGoToMap = (e) => {
     e.stopPropagation();
-    if (video?.latitude != null && video?.longitude != null) {
-      const lat = video.latitude;
-      const lon = video.longitude;
-      navigate(`/?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&z=17`);
-    } else {
-      navigate('/');
-    }
+    const mapPath = (video?.latitude != null && video?.longitude != null)
+      ? `/?lat=${encodeURIComponent(video.latitude)}&lon=${encodeURIComponent(video.longitude)}&z=17`
+      : '/';
+    onNavigateToMap ? onNavigateToMap(mapPath) : navigate(mapPath);
   };
 
   const handleDeleteVideoClick = (e) => {
@@ -270,79 +201,47 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
   const handleConfirmDelete = async () => {
     setIsDeleting(true);
     setShowDeleteModal(false);
-    
     try {
-      // Получаем правильный ID пользователя из кэша
-      let currentUserId = null;
-      
-      // Сначала пробуем использовать данные из кэша
-      if (currentUser?.dbUser?.id) {
-        currentUserId = currentUser.dbUser.id;
-      } else if (currentUser?.accessToken) {
-        // Fallback к API только если нет данных в кэше
+      let currentUserId = currentUser?.dbUser?.id;
+      if (!currentUserId && currentUser?.accessToken) {
         try {
           const response = await ServerApi.getYandexUserData(currentUser.accessToken);
           if (response.success) {
             const syncedUser = await UserService.syncUserWithYandex(response.userData);
             currentUserId = syncedUser?.id;
           }
-        } catch (error) {
-          console.error('Ошибка получения ID пользователя:', error);
-        }
+        } catch {}
       }
-      
-      if (!currentUserId) {
-        throw new Error('Не удалось определить ID пользователя');
-      }
-      
+      if (!currentUserId) throw new Error('Не удалось определить ID пользователя');
       await VideoService.deleteVideo(video.id, currentUserId);
-      
-      // Закрываем плеер и возвращаемся на предыдущую страницу
       onClose();
       navigate(-1);
     } catch (error) {
-      console.error('❌ Ошибка при удалении видео:', error);
       alert('Ошибка при удалении видео: ' + error.message);
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const handleCancelDelete = () => {
-    setShowDeleteModal(false);
-  };
+  const handleCancelDelete = () => setShowDeleteModal(false);
 
   const handleTagClick = (tagName) => {
-    // Переходим на страницу поиска по тегу (пока просто закрываем плеер)
-    // В будущем можно добавить страницу поиска
-    console.log('Поиск по тегу:', tagName);
-    // navigate(`/search?tag=${encodeURIComponent(tagName)}`);
+    console.log('Tag search:', tagName);
   };
 
   const handleOpenComments = (e) => {
     e.stopPropagation();
-    if (onOpenComments) {
-      onOpenComments();
-    }
+    onOpenComments?.();
   };
 
-  // Функция для обновления счетчика комментариев (вызывается из родительского компонента)
-  const updateCommentsCount = (newCount) => {
-    setCurrentCommentsCount(newCount);
-  };
-
-  // Экспортируем функцию обновления счетчика для использования в родительском компоненте
   useEffect(() => {
-    if (onCommentsCountChange) {
-      onCommentsCountChange(updateCommentsCount);
-    }
+    onCommentsCountChange?.((newCount) => setCurrentCommentsCount(newCount));
   }, [onCommentsCountChange]);
 
   const formatPublishedAt = (dt) => {
+    if (!dt) return '';
     try {
-      if (!dt) return '';
-      const d = new Date(dt);
-      return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: 'numeric' });
+      return new Date(dt).toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: 'numeric' });
     } catch {
       return '';
     }
@@ -553,6 +452,15 @@ const VideoPlayer = ({ video, onClose, currentUser, onPrev, onNext, hasPrev = fa
       )}
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Оптимизация: перерисовываем только если изменились ключевые props
+  return (
+    prevProps.video?.id === nextProps.video?.id &&
+    prevProps.currentUser?.id === nextProps.currentUser?.id &&
+    prevProps.commentsCount === nextProps.commentsCount &&
+    prevProps.hasPrev === nextProps.hasPrev &&
+    prevProps.hasNext === nextProps.hasNext
+  );
+});
 
 export default VideoPlayer;

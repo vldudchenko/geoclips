@@ -1,15 +1,15 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import VideoPlayer from './VideoPlayer';
+import { SkeletonProfile, SkeletonCard } from './common/Skeleton';
 import './ProfilePage.css';
 import { API_BASE_URL } from '../utils/constants';
+import { AdminApiService } from '../services/adminApiService';
 
-const ProfilePage = ({ user, onLogout, accessToken }) => {
+const ProfilePage = React.memo(({ user, onLogout, accessToken }) => {
   const navigate = useNavigate();
+  const videoRefs = useRef({});
   
-  
-  
-  // Состояние компонента
   const [profileData, setProfileData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -20,61 +20,51 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
   const [deletingVideo, setDeletingVideo] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [videoToDelete, setVideoToDelete] = useState(null);
-  const videoRefs = useRef({});
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const handlePreviewEnter = (id) => {
-    try {
-      const el = videoRefs.current[id];
-      if (el) {
-        el.currentTime = 0;
-        el.play().catch(() => {});
-      }
-    } catch {}
-  };
+  const handlePreviewEnter = useCallback((id) => {
+    const el = videoRefs.current[id];
+    if (el) {
+      el.currentTime = 0;
+      el.play().catch(() => {});
+    }
+  }, []);
 
-  const handlePreviewLeave = (id) => {
-    try {
-      const el = videoRefs.current[id];
-      if (el) {
-        el.pause();
-        el.currentTime = 0;
-      }
-    } catch {}
-  };
+  const handlePreviewLeave = useCallback((id) => {
+    const el = videoRefs.current[id];
+    if (el) {
+      el.pause();
+      el.currentTime = 0;
+    }
+  }, []);
 
-  // Загрузка данных профиля с сервера
   useEffect(() => {
     const loadProfileData = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        // Идентификатор профиля: display_name/UUID из URL или 'current' для своего профиля
-        let identifier = accessToken || 'current';
-        
+        const identifier = accessToken || 'current';
         const response = await fetch(`${API_BASE_URL}/api/profile/${identifier}`, {
           credentials: 'include'
         });
 
         if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('Пользователь не найден');
-          } else if (response.status === 401) {
-            throw new Error('Требуется авторизация');
-          }
-          throw new Error('Ошибка загрузки данных профиля');
+          const errorMap = {
+            404: 'Пользователь не найден',
+            401: 'Требуется авторизация'
+          };
+          throw new Error(errorMap[response.status] || 'Ошибка загрузки данных профиля');
         }
 
         const data = await response.json();
         
         if (data.success) {
-          console.log('✅ Данные профиля получены:', data);
           setProfileData(data);
         } else {
           throw new Error(data.error || 'Ошибка загрузки данных');
         }
       } catch (err) {
-        console.error('Ошибка загрузки профиля:', err);
         setError(err.message);
       } finally {
         setIsLoading(false);
@@ -84,32 +74,51 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
     loadProfileData();
   }, [accessToken]);
 
-  // Обработчики событий
-  const handleVideoClick = (video) => {
-    // Открываем ленту плеера поверх профиля
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      if (!user?.dbUser) {
+        setIsAdmin(false);
+        return;
+      }
+
+      try {
+        const hasAccess = await AdminApiService.checkAdminAccess();
+        setIsAdmin(hasAccess);
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdminAccess();
+  }, [user]);
+
+  const handleVideoClick = useCallback((video) => {
     const idx = profileData?.videos?.findIndex(v => v.id === video.id) ?? -1;
     setSelectedIndex(idx);
     setSelectedVideo(video);
     if (profileData?.user?.display_name) {
       navigate(`/video/${profileData.user.display_name}/${video.id}`);
     }
-  };
+  }, [profileData, navigate]);
 
-  const handleNavigateToProfile = (profilePath) => {
-    // Закрываем плеер
+  const handleNavigateToProfile = useCallback((profilePath) => {
     setSelectedVideo(null);
     setSelectedIndex(-1);
-    // Если мы переходим на другой профиль (не текущий), выполняем навигацию
-    // Если это тот же профиль, просто закрываем плеер
     const currentProfilePath = profileData?.user?.display_name 
       ? `/profile/${profileData.user.display_name}` 
       : null;
     if (profilePath !== currentProfilePath) {
       navigate(profilePath);
     }
-  };
+  }, [profileData, navigate]);
 
-  const handleNext = () => {
+  const handleNavigateToMap = useCallback((mapPath) => {
+    setSelectedVideo(null);
+    setSelectedIndex(-1);
+    navigate(mapPath);
+  }, [navigate]);
+
+  const handleNext = useCallback(() => {
     if (!profileData?.videos || selectedIndex < 0) return;
     const nextIdx = (selectedIndex + 1) % profileData.videos.length;
     setSelectedIndex(nextIdx);
@@ -117,9 +126,9 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
     if (profileData?.user?.display_name) {
       navigate(`/video/${profileData.user.display_name}/${profileData.videos[nextIdx].id}`);
     }
-  };
+  }, [profileData, selectedIndex, navigate]);
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (!profileData?.videos || selectedIndex < 0) return;
     const prevIdx = (selectedIndex - 1 + profileData.videos.length) % profileData.videos.length;
     setSelectedIndex(prevIdx);
@@ -127,14 +136,14 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
     if (profileData?.user?.display_name) {
       navigate(`/video/${profileData.user.display_name}/${profileData.videos[prevIdx].id}`);
     }
-  };
+  }, [profileData, selectedIndex, navigate]);
 
-  const handleDeleteVideoClick = (video) => {
+  const handleDeleteVideoClick = useCallback((video) => {
     setVideoToDelete(video);
     setShowDeleteModal(true);
-  };
+  }, []);
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = useCallback(async () => {
     if (!videoToDelete || !profileData?.isCurrentUserProfile) return;
 
     setDeletingVideo(videoToDelete.id);
@@ -146,11 +155,8 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
         credentials: 'include'
       });
 
-      if (!response.ok) {
-        throw new Error('Ошибка при удалении видео');
-      }
+      if (!response.ok) throw new Error('Ошибка при удалении видео');
 
-      // Обновляем локальное состояние
       setProfileData(prev => ({
         ...prev,
         videos: prev.videos.filter(video => video.id !== videoToDelete.id),
@@ -162,64 +168,56 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
         }
       }));
     } catch (error) {
-      console.error('Ошибка при удалении видео:', error);
       alert('Ошибка при удалении видео: ' + error.message);
     } finally {
       setDeletingVideo(null);
       setVideoToDelete(null);
     }
-  };
+  }, [videoToDelete, profileData]);
 
-  const handleCancelDelete = () => {
+  const handleCancelDelete = useCallback(() => {
     setShowDeleteModal(false);
     setVideoToDelete(null);
-  };
+  }, []);
 
-  const handleLogoutConfirm = async () => {
-    try {
-      setShowLogoutModal(false);
-      await onLogout();
-    } catch (error) {
-      console.error('Ошибка при выходе:', error);
-    }
-  };
-
-  const handleLogoutCancel = () => {
+  const handleLogoutConfirm = useCallback(async () => {
     setShowLogoutModal(false);
-  };
+    await onLogout();
+  }, [onLogout]);
 
-  const handleYandexProfileClick = () => {
+  const handleLogoutCancel = useCallback(() => {
+    setShowLogoutModal(false);
+  }, []);
+
+  const handleYandexProfileClick = useCallback(() => {
     window.open('https://passport.yandex.ru/profile', '_blank');
     setShowDropdownMenu(false);
-  };
+  }, []);
 
-  const handleMenuToggle = () => {
-    setShowDropdownMenu(!showDropdownMenu);
-  };
+  const handleMenuToggle = useCallback(() => {
+    setShowDropdownMenu(prev => !prev);
+  }, []);
 
-  const handleLogoutFromMenu = () => {
+  const handleLogoutFromMenu = useCallback(() => {
     setShowDropdownMenu(false);
     setShowLogoutModal(true);
-  };
+  }, []);
 
-  const handleYandexLogin = () => {
-    // Для редиректа нужен полный URL, не пустая строка
-    const authUrl = API_BASE_URL ? `${API_BASE_URL}/auth/yandex` : 'http://localhost:5000/auth/yandex';
-    window.location.href = authUrl;
-  };
+  const handleYandexLogin = useCallback(() => {
+    window.location.href = API_BASE_URL ? `${API_BASE_URL}/auth/yandex` : 'http://localhost:5000/auth/yandex';
+  }, []);
 
-  // Закрытие меню при клике вне его
   useEffect(() => {
+    if (!showDropdownMenu) return;
+    
     const handleClickOutside = (event) => {
-      if (showDropdownMenu && !event.target.closest('.profile-menu-container')) {
+      if (!event.target.closest('.profile-menu-container')) {
         setShowDropdownMenu(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showDropdownMenu]);
 
   // Обработка состояний загрузки и ошибок
@@ -227,9 +225,22 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
     return (
       <div className="profile-page">
         <div className="profile-container">
-          <div className="profile-loading">
-            <div className="loading-spinner"></div>
-            <p>Загрузка профиля...</p>
+          <div className="profile-header">
+            <button 
+              className="home-button"
+              onClick={() => navigate('/')}
+              title="Вернуться на главную"
+            >
+              Главная
+            </button>
+          </div>
+          <SkeletonProfile />
+          <div className="videos-section">
+            <div className="videos-grid">
+              {[...Array(6)].map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -325,8 +336,8 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
               </div>
             </div>
 
-            {/* Кнопка меню в углу - только для авторизованных пользователей */}
-            {user && (
+            {/* Кнопка меню в углу - только для текущего пользователя */}
+            {user && isCurrentUserProfile && (
               <div className="profile-menu-container">
                 <button
                   className="profile-menu-button"
@@ -345,15 +356,26 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
                     >
                       🔗 Яндекс профиль
                     </button>
-                    {/* Кнопка выхода доступна только если это профиль текущего пользователя */}
-                    {isCurrentUserProfile && (
+                    {/* Кнопка админки доступна только для администраторов */}
+                    {isAdmin && (
                       <button
-                        className="dropdown-menu-item logout-item"
-                        onClick={handleLogoutFromMenu}
+                        className="dropdown-menu-item"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowDropdownMenu(false);
+                          window.location.href = '/admin';
+                        }}
                       >
-                        Выйти
+                        ⚙️ Админ панель
                       </button>
                     )}
+                    <button
+                      className="dropdown-menu-item logout-item"
+                      onClick={handleLogoutFromMenu}
+                    >
+                      Выйти
+                    </button>
                   </div>
                 )}
               </div>
@@ -537,6 +559,7 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
           currentUser={user}
           onClose={() => { setSelectedVideo(null); setSelectedIndex(-1); }}
           onNavigateToProfile={handleNavigateToProfile}
+          onNavigateToMap={handleNavigateToMap}
           onPrev={handlePrev}
           onNext={handleNext}
           hasPrev={profileData?.videos?.length > 1}
@@ -547,6 +570,6 @@ const ProfilePage = ({ user, onLogout, accessToken }) => {
       )}
     </div>
   );
-};
+});
 
 export default ProfilePage;

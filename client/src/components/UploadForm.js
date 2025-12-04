@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VideoService } from '../services/videoService';
 import { UserService } from '../services/userService';
 import { ServerApi } from '../services/serverApi';
 import { validateVideoFile, checkVideoDuration, generateUUID } from '../utils/videoUtils';
 
-const UploadForm = ({ coordinates, onSubmit, onCancel, user }) => {
+const DEFAULT_TAGS = ['природа', 'город', 'архитектура', 'люди', 'транспорт', 'еда', 'спорт', 'развлечения', 'работа', 'путешествия'];
+
+const UploadForm = React.memo(({ coordinates, onSubmit, onCancel, user }) => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     video: null,
@@ -19,122 +21,94 @@ const UploadForm = ({ coordinates, onSubmit, onCancel, user }) => {
   const [availableTags, setAvailableTags] = useState([]);
   const [loadingTags, setLoadingTags] = useState(true);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState(''); // Статус загрузки
+  const [uploadStatus, setUploadStatus] = useState('');
 
-  // Загрузка тегов из базы данных
   useEffect(() => {
     const loadTags = async () => {
       try {
         setLoadingTags(true);
         const tags = await VideoService.getAllTags();
         setAvailableTags(tags.map(tag => tag.name));
-      } catch (error) {
-        console.error('❌ Ошибка при загрузке тегов:', error);
-        // Fallback к предустановленным тегам
-        setAvailableTags([
-          'природа', 'город', 'архитектура', 'люди', 'транспорт', 
-          'еда', 'спорт', 'развлечения', 'работа', 'путешествия'
-        ]);
+      } catch {
+        setAvailableTags(DEFAULT_TAGS);
       } finally {
         setLoadingTags(false);
       }
     };
-
     loadTags();
   }, []);
 
 
-  // Обработка выбора видео
-  const handleVideoChange = async (e) => {
+  const handleVideoChange = useCallback(async (e) => {
     const file = e.target.files[0];
-    setErrors({ ...errors, video: null });
+    setErrors(prev => ({ ...prev, video: null }));
     
     if (!file) {
-      setFormData({ ...formData, video: null });
+      setFormData(prev => ({ ...prev, video: null }));
       return;
     }
 
-    // Валидация размера и типа
     const validationError = validateVideoFile(file);
     if (validationError) {
-      setErrors({ ...errors, ...validationError });
+      setErrors(prev => ({ ...prev, ...validationError }));
       return;
     }
 
-    // Проверка длительности на сервере
     try {
       const validationResult = await ServerApi.validateVideo(file);
       if (!validationResult.isValid) {
-        setErrors({ ...errors, video: validationResult.errorMessage });
+        setErrors(prev => ({ ...prev, video: validationResult.errorMessage }));
         return;
       }
-    } catch (error) {
-      // Fallback к клиентской проверке
+    } catch {
       const durationError = await checkVideoDuration(file);
       if (durationError) {
-        setErrors({ ...errors, video: durationError });
+        setErrors(prev => ({ ...prev, video: durationError }));
         return;
       }
     }
 
-    setFormData({ ...formData, video: file });
-  };
+    setFormData(prev => ({ ...prev, video: file }));
+  }, []);
 
-  // Обработка изменения описания
-  const handleDescriptionChange = (e) => {
+  const handleDescriptionChange = useCallback((e) => {
     const value = e.target.value;
     if (value.length <= 100) {
-      setFormData({ ...formData, description: value });
-      setErrors({ ...errors, description: null });
+      setFormData(prev => ({ ...prev, description: value }));
+      setErrors(prev => ({ ...prev, description: null }));
     }
-  };
+  }, []);
 
-  // Добавление тега
-  const addTag = (tag) => {
-    if (!formData.tags.includes(tag)) {
-      setFormData({ ...formData, tags: [...formData.tags, tag] });
-    }
-  };
-
-  // Удаление тега
-  const removeTag = (tagToRemove) => {
-    setFormData({ 
-      ...formData, 
-      tags: formData.tags.filter(tag => tag !== tagToRemove) 
+  const addTag = useCallback((tag) => {
+    setFormData(prev => {
+      if (prev.tags.includes(tag)) return prev;
+      return { ...prev, tags: [...prev.tags, tag] };
     });
-  };
+  }, []);
 
-  // Создание нового тега
-  const createNewTag = () => {
+  const removeTag = useCallback((tagToRemove) => {
+    setFormData(prev => ({ ...prev, tags: prev.tags.filter(tag => tag !== tagToRemove) }));
+  }, []);
+
+  const createNewTag = useCallback(() => {
     const tag = newTag.trim().toLowerCase();
     if (tag && !formData.tags.includes(tag) && !availableTags.includes(tag)) {
       addTag(tag);
       setNewTag('');
     }
-  };
+  }, [newTag, formData.tags, availableTags, addTag]);
 
-  // Обработка отправки формы
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setErrors({});
     setUploadProgress(0);
     setUploadStatus('Подготовка к загрузке...');
 
-    // Валидация
     const newErrors = {};
-    
-    if (!formData.video) {
-      newErrors.video = 'Выберите видео файл';
-    }
-    
-    if (!formData.description.trim()) {
-      newErrors.description = 'Введите описание';
-    }
-    
-    if (formData.tags.length === 0) {
-      newErrors.tags = 'Выберите хотя бы один тег';
-    }
+    if (!formData.video) newErrors.video = 'Выберите видео файл';
+    if (!formData.description.trim()) newErrors.description = 'Введите описание';
+    if (formData.tags.length === 0) newErrors.tags = 'Выберите хотя бы один тег';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -144,44 +118,21 @@ const UploadForm = ({ coordinates, onSubmit, onCancel, user }) => {
 
     try {
       setUploadStatus('Синхронизация пользователя...');
-      
-      // Сначала пробуем использовать данные из кэша
-      let syncedUser = null;
-      
-      if (user?.dbUser?.id) {
-        // Используем данные из кэша
-        syncedUser = user.dbUser;
-      } else {
-        // Fallback к синхронизации только если нет данных в кэше
-        syncedUser = await UserService.syncUserWithYandex(user);
-      }
+      const syncedUser = user?.dbUser?.id ? user.dbUser : await UserService.syncUserWithYandex(user);
       
       setUploadProgress(10);
       setUploadStatus('Подготовка файла...');
-      
-      // Создаем временный ID для видео
       const videoId = generateUUID();
       
       setUploadProgress(20);
       setUploadStatus('Загрузка видео...');
-      
-      // Загружаем файл в Supabase Storage
-      const uploadResult = await VideoService.uploadVideoFile(
-        formData.video, 
-        syncedUser.id, 
-        videoId
-      );
+      const uploadResult = await VideoService.uploadVideoFile(formData.video, syncedUser.id, videoId);
       
       setUploadProgress(60);
       setUploadStatus('Обработка данных...');
-      
-      // Получаем публичный URL видео
       const videoUrl = VideoService.getVideoUrl(uploadResult.path);
-      if (!videoUrl) {
-        throw new Error('Не удалось получить публичный URL загруженного видео');
-      }
+      if (!videoUrl) throw new Error('Не удалось получить публичный URL загруженного видео');
       
-      // Подготавливаем данные для БД
       const videoData = {
         id: videoId,
         user_id: syncedUser.id,
@@ -191,67 +142,48 @@ const UploadForm = ({ coordinates, onSubmit, onCancel, user }) => {
         longitude: coordinates[0],
         likes_count: 0,
         views_count: 0,
-        tags: formData.tags // Добавляем теги
+        tags: formData.tags
       };
       
       setUploadProgress(80);
       setUploadStatus('Сохранение в базу данных...');
-      
-      // Сохраняем видео в БД
       const savedVideo = await VideoService.uploadVideo(videoData);
       
       setUploadProgress(100);
       setUploadStatus('Загрузка завершена!');
-      
-      // Небольшая задержка для показа финального статуса
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Принудительно закрываем форму до навигации
-      try { onCancel && onCancel(); } catch {}
+      onCancel?.();
 
-      // Переход в профиль пользователя
-      if (syncedUser?.display_name) {
-        navigate(`/profile/${syncedUser.display_name}`);
-      } else if (syncedUser?.id) {
-        navigate(`/profile/${syncedUser.id}`);
-      } else if (user?.accessToken) {
-        navigate(`/profile/${user.accessToken}`);
-      } else {
-        navigate('/profile');
-      }
+      const profilePath = syncedUser?.display_name 
+        ? `/profile/${syncedUser.display_name}` 
+        : syncedUser?.id 
+          ? `/profile/${syncedUser.id}` 
+          : user?.accessToken 
+            ? `/profile/${user.accessToken}` 
+            : '/profile';
+      navigate(profilePath);
       
-      // Вызываем callback с результатом
-      await onSubmit({
-        success: true,
-        video: savedVideo,
-        message: 'Видео успешно загружено!'
-      });
-      
+      await onSubmit({ success: true, video: savedVideo, message: 'Видео успешно загружено!' });
     } catch (error) {
-      console.error('Ошибка при загрузке видео:', error);
       setUploadStatus('Ошибка при загрузке');
       setUploadProgress(0);
       
-      // Обработка специфических ошибок
-      let errorMessage = 'Произошла ошибка при загрузке видео';
+      const errorMap = {
+        'FILE_TOO_LARGE': 'Файл слишком большой (лимит: 50MB)',
+        'TOO_MANY_FILES': 'Слишком много файлов (максимум: 1)'
+      };
       
-      if (error.message) {
-        errorMessage = error.message;
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.code === 'FILE_TOO_LARGE') {
-        errorMessage = 'Файл слишком большой. Максимальный размер: 50 МБ (лимит Supabase Storage)';
-      } else if (error.code === 'TOO_MANY_FILES') {
-        errorMessage = 'Слишком много файлов. Максимум: 1 файл';
-      }
+      const errorMessage = error.message 
+        || error.response?.data?.error 
+        || errorMap[error.code]
+        || 'Произошла ошибка при загрузке видео';
       
-      setErrors({ 
-        submit: errorMessage
-      });
+      setErrors({ submit: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [formData, coordinates, user, navigate, onCancel, onSubmit]);
 
   return (
     <div className="upload-form-container">
@@ -377,6 +309,6 @@ const UploadForm = ({ coordinates, onSubmit, onCancel, user }) => {
       </div>
     </div>
   );
-};
+});
 
 export default UploadForm;

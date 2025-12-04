@@ -1,9 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Используем переменные окружения для конфигурации
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://dfzlheyjqazpwqtiqdsp.supabase.co';
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmemxoZXlqcWF6cHdxdGlxZHNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NDA5NTUsImV4cCI6MjA3NjAxNjk1NX0.OBc35yo7lXt4sv7zOPPyKegP9nqDUOVqRGaVPy8cjiE';
+// ВАЖНО: Все запросы к Supabase должны проходить через сервер
+// Этот клиент используется только для совместимости со старым кодом
+// и будет постепенно удален
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('⚠️ Supabase credentials not found in environment variables. Direct Supabase access is disabled for security.');
+}
+
+// Создаем клиент только если есть переменные окружения
+export const supabase = (supabaseUrl && supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
 
 // Типы для TypeScript (опционально) - удалены для совместимости с .js файлом

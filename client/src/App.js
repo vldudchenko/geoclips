@@ -1,18 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
-import YandexMap from './components/YandexMap';
-import UploadForm from './components/UploadForm';
-import ProfilePage from './components/ProfilePage';
-import VideoPage from './components/VideoPage';
 import { VideoService } from './services/videoService';
 import useAuth from './hooks/useAuth';
+import ErrorBoundary from './components/common/ErrorBoundary';
+import LoadingSpinner from './components/common/LoadingSpinner';
 import './App.css';
 
-// Компонент для главной страницы
-const HomePage = ({ user, onLogout, ymaps, mapData, setMapData, error, setError, showUploadForm, setShowUploadForm, onNavigateProfile, isAuthenticated }) => {
-  const navigate = useNavigate();
+const YandexMap = lazy(() => import('./components/YandexMap'));
+const UploadForm = lazy(() => import('./components/UploadForm'));
+const ProfilePage = lazy(() => import('./components/ProfilePage'));
+const VideoPage = lazy(() => import('./components/VideoPage'));
+const AdminPanel = lazy(() => import('./components/admin/AdminPanel'));
 
-  const handleCoordinatesSelect = (coords) => {
+const HomePage = React.memo(({ user, onLogout, ymaps, mapData, setMapData, error, setError, showUploadForm, setShowUploadForm, onNavigateProfile, isAuthenticated }) => {
+
+  const handleCoordinatesSelect = React.useCallback((coords) => {
     const newMapData = {
       coordinates: {
         latitude: coords[1],
@@ -23,51 +25,44 @@ const HomePage = ({ user, onLogout, ymaps, mapData, setMapData, error, setError,
     setMapData(newMapData);
     localStorage.setItem('mapData', JSON.stringify(newMapData));
     
-    // Показываем форму загрузки только авторизованным пользователям
     if (isAuthenticated) {
       setShowUploadForm(true);
     }
-  };
+  }, [isAuthenticated, setMapData, setShowUploadForm]);
 
-  const handleSubmitUpload = async (uploadData) => {
+  const handleSubmitUpload = React.useCallback(async (uploadData) => {
     try {
-      console.log('App: Отправка данных загрузки:', uploadData);
-      
-      // Извлекаем только данные видео, исключая служебные поля
       const { success, message, ...videoData } = uploadData;
       await VideoService.uploadVideo(videoData);
       
-      // Очищаем данные карты после успешной загрузки
       setMapData(null);
       localStorage.removeItem('mapData');
       setShowUploadForm(false);
       setError(null);
-      
-      // Видео успешно загружено
     } catch (error) {
       console.error('❌ App: Ошибка при загрузке видео:', error);
-
     }
-  };
+  }, [setMapData, setShowUploadForm, setError]);
 
-  const handleCloseUploadForm = () => {
+  const handleCloseUploadForm = React.useCallback(() => {
     setShowUploadForm(false);
     setMapData(null);
     localStorage.removeItem('mapData');
-  };
+  }, [setShowUploadForm, setMapData]);
 
   return (
     <>
       <div className="map-container">
-        <YandexMap
-          ymaps={ymaps}
-          mapData={mapData}
-          onCoordinatesSelect={handleCoordinatesSelect}
-          currentUser={user}
-          onNavigateProfile={onNavigateProfile}
-          isAuthenticated={isAuthenticated}
-        />
-        
+        <Suspense fallback={<LoadingSpinner fullScreen message="Загрузка карты..." />}>
+          <YandexMap
+            ymaps={ymaps}
+            mapData={mapData}
+            onCoordinatesSelect={handleCoordinatesSelect}
+            currentUser={user}
+            onNavigateProfile={onNavigateProfile}
+            isAuthenticated={isAuthenticated}
+          />
+        </Suspense>
       </div>
 
       {error && (
@@ -77,51 +72,48 @@ const HomePage = ({ user, onLogout, ymaps, mapData, setMapData, error, setError,
       )}
 
       {showUploadForm && mapData && isAuthenticated && (
-        <UploadForm
-          coordinates={[mapData.coordinates.longitude, mapData.coordinates.latitude]}
-          onSubmit={handleSubmitUpload}
-          onCancel={handleCloseUploadForm}
-          user={user}
-        />
+        <Suspense fallback={<LoadingSpinner message="Загрузка формы..." />}>
+          <UploadForm
+            coordinates={[mapData.coordinates.longitude, mapData.coordinates.latitude]}
+            onSubmit={handleSubmitUpload}
+            onCancel={handleCloseUploadForm}
+            user={user}
+          />
+        </Suspense>
       )}
     </>
   );
-};
+});
 
-// Компонент для профиля с параметрами
-const ProfilePageWithParams = ({ user, onLogout }) => {
+const ProfilePageWithParams = React.memo(({ user, onLogout }) => {
   const { accessToken } = useParams();
-  
-  // Если accessToken === 'current', не передаем его в ProfilePage
-  // ProfilePage сам определит, что нужно загрузить данные текущего пользователя
   const actualAccessToken = accessToken === 'current' ? null : accessToken;
 
   return (
-    <ProfilePage 
-      user={user} 
-      onLogout={onLogout} 
-      accessToken={actualAccessToken}
-    />
+    <Suspense fallback={<LoadingSpinner fullScreen message="Загрузка профиля..." />}>
+      <ProfilePage 
+        user={user} 
+        onLogout={onLogout} 
+        accessToken={actualAccessToken}
+      />
+    </Suspense>
   );
-};
+});
 
 // Внутренний компонент приложения с роутингом
 const AppContent = () => {
   const navigate = useNavigate();
   
-  // Восстанавливаем сохраненные данные карты из localStorage
-  const getInitialMapData = () => {
+  const [mapData, setMapData] = useState(() => {
     const saved = localStorage.getItem('mapData');
     return saved ? JSON.parse(saved) : null;
-  };
-
-  const [mapData, setMapData] = useState(getInitialMapData);
+  });
   const [error, setError] = useState(null);
   const [ymaps, setYmaps] = useState(null);
   const [showUploadForm, setShowUploadForm] = useState(false);
   
   // Авторизация
-  const { user, isAuthenticated, isLoading, logout, getCurrentUserId } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
 
   // Инициализация Яндекс карт
   useEffect(() => {
@@ -132,37 +124,25 @@ const AppContent = () => {
     }
   }, []);
 
-  // Функция для навигации на профиль текущего пользователя
-  const navigateToProfile = async () => {
+  const navigateToProfile = React.useCallback(async () => {
     try {
-      // Приоритет: используем display_name пользователя из базы данных
       if (user?.dbUser?.display_name) {
         navigate(`/profile/${user.dbUser.display_name}`);
       } else if (user?.dbUser?.id) {
-        // Fallback: используем ID пользователя
         navigate(`/profile/${user.dbUser.id}`);
       } else if (user?.accessToken) {
-        // Fallback: используем токен доступа
         navigate(`/profile/${user.accessToken}`);
       } else {
-        console.error('❌ Данные пользователя не найдены, используем fallback');
-        // Fallback на старый путь
         navigate('/profile');
       }
     } catch (error) {
-      console.error('❌ Ошибка навигации на профиль:', error);
-      // Fallback на старый путь
       navigate('/profile');
     }
-  };
+  }, [user, navigate]);
 
   // Показываем загрузку пока проверяем авторизацию
   if (isLoading) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-spinner"></div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen message="Загрузка приложения..." />;
   }
 
   return (
@@ -210,7 +190,21 @@ const AppContent = () => {
         {/* Видео с параметрами display_name пользователя и ID */}
         <Route 
           path="/video/:userDisplayName/:videoId" 
-          element={<VideoPage currentUser={user} />} 
+          element={
+            <Suspense fallback={<LoadingSpinner fullScreen message="Загрузка видео..." />}>
+              <VideoPage currentUser={user} />
+            </Suspense>
+          } 
+        />
+        
+        {/* Административная панель с lazy loading */}
+        <Route 
+          path="/admin/*" 
+          element={
+            <Suspense fallback={<LoadingSpinner fullScreen message="Загрузка админ-панели..." />}>
+              <AdminPanel />
+            </Suspense>
+          } 
         />
         
         {/* Редирект на главную для неизвестных маршрутов */}
@@ -220,12 +214,14 @@ const AppContent = () => {
   );
 };
 
-// Главный компонент приложения
+// Главный компонент приложения с ErrorBoundary
 function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <AppContent />
+      </Router>
+    </ErrorBoundary>
   );
 }
 

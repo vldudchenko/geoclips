@@ -1,81 +1,74 @@
-import { supabase } from '../lib/supabase';
 import CacheService from './cacheService';
+import { SERVER_URL } from '../utils/constants';
 
 /**
  * Сервис для работы с пользователями
- * Оптимизированная версия с улучшенным кэшированием
+ * Все запросы проходят через сервер для безопасности
  */
 export class UserService {
   /**
-   * Обработка ошибок Supabase
+   * Обработка ошибок
    */
   static handleError(error, context = '') {
     console.error(`UserService Error [${context}]:`, error);
     
-    if (error.code === 'PGRST116') {
+    if (error.message?.includes('404') || error.message?.includes('не найден')) {
       throw new Error('Пользователь не найден');
     }
-    if (error.message?.includes('JWT')) {
+    if (error.message?.includes('401') || error.message?.includes('авторизации')) {
       throw new Error('Ошибка авторизации');
     }
     
     throw error;
   }
+
+  /**
+   * Выполнение запроса к серверу
+   */
+  static async fetchFromServer(endpoint, options = {}) {
+    try {
+      const response = await fetch(`${SERVER_URL || ''}/api${endpoint}`, {
+        ...options,
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
   /**
    * Создать или обновить пользователя
+   * ВАЖНО: Эта функция должна вызываться только через сервер при авторизации
+   * Для клиента доступна только через серверный API
    */
   static async createOrUpdateUser(userData) {
     try {
-      const existingUser = await this.getUserByYandexId(userData.yandex_id, false);
-      
-      if (existingUser) {
-        const { data, error } = await supabase
-          .from('users')
-          .update(() => {
-            const updatePayload = {
-              first_name: userData.first_name,
-              last_name: userData.last_name,
-              display_name: userData.display_name,
-            };
-            // Не трогаем avatar_url, если явное значение не передано
-            if (typeof userData.avatar_url !== 'undefined') {
-              updatePayload.avatar_url = userData.avatar_url;
-            }
-            return updatePayload;
-          })
-          .eq('yandex_id', userData.yandex_id)
-          .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
-          .maybeSingle();
+      // Эта операция должна выполняться на сервере при авторизации
+      // Для клиента используем синхронизацию через сервер
+      const result = await this.fetchFromServer('/update-user-data', {
+        method: 'POST',
+        body: JSON.stringify({ userData })
+      });
 
-        if (error) this.handleError(error, 'updateUser');
-        
+      if (result.user) {
+        const data = result.user;
         // Обновляем кэш
-        if (data) {
-          CacheService.setUserData(`yandex_${userData.yandex_id}`, data, true);
-          CacheService.setUserData(`user_${data.id}`, data, true);
-        }
-        
-        return data;
-      } else {
-        const { data, error } = await supabase
-          .from('users')
-          .insert([{
-            ...userData,
-            created_at: new Date().toISOString(),
-          }])
-          .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
-          .maybeSingle();
-
-        if (error) this.handleError(error, 'createUser');
-        
-        // Сохраняем в кэш
-        if (data) {
-          CacheService.setUserData(`yandex_${userData.yandex_id}`, data, true);
-          CacheService.setUserData(`user_${data.id}`, data, true);
-        }
-        
+        CacheService.setUserData(`yandex_${userData.yandex_id}`, data, true);
+        CacheService.setUserData(`user_${data.id}`, data, true);
         return data;
       }
+
+      return null;
     } catch (error) {
       this.handleError(error, 'createOrUpdateUser');
     }
@@ -91,21 +84,17 @@ export class UserService {
         if (cachedUser) return cachedUser;
       }
 
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
-        .eq('yandex_id', yandexId)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        this.handleError(error, 'getUserByYandexId');
+      const result = await this.fetchFromServer(`/users/by-yandex-id/${yandexId}`);
+      
+      if (result.success && result.user) {
+        const data = result.user;
+        if (useCache) {
+          CacheService.setUserData(`yandex_${yandexId}`, data, true);
+        }
+        return data;
       }
       
-      if (data && useCache) {
-        CacheService.setUserData(`yandex_${yandexId}`, data, true);
-      }
-      
-      return data;
+      return null;
     } catch (error) {
       this.handleError(error, 'getUserByYandexId');
     }
@@ -121,21 +110,17 @@ export class UserService {
         if (cachedUser) return cachedUser;
       }
 
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        this.handleError(error, 'getUserById');
+      const result = await this.fetchFromServer(`/users/${userId}`);
+      
+      if (result.success && result.user) {
+        const data = result.user;
+        if (useCache) {
+          CacheService.setUserData(`user_${userId}`, data, true);
+        }
+        return data;
       }
       
-      if (data && useCache) {
-        CacheService.setUserData(`user_${userId}`, data, true);
-      }
-      
-      return data;
+      return null;
     } catch (error) {
       this.handleError(error, 'getUserById');
     }
@@ -156,23 +141,19 @@ export class UserService {
         }
       }
 
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at, display_name')
-        .eq('display_name', displayName)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('❌ UserService.getUserByDisplayName: ошибка Supabase:', error);
-        this.handleError(error, 'getUserByDisplayName');
+      const result = await this.fetchFromServer(`/users/by-display-name/${encodeURIComponent(displayName)}`);
+      
+      if (result.success && result.user) {
+        const data = result.user;
+        if (useCache) {
+          CacheService.setUserData(`display_name_${displayName}`, data, true);
+        }
+        console.log('✅ UserService.getUserByDisplayName: результат поиска:', data);
+        return data;
       }
-
-      if (data && useCache) {
-        CacheService.setUserData(`display_name_${displayName}`, data, true);
-      }
-
-      console.log('✅ UserService.getUserByDisplayName: результат поиска:', data);
-      return data;
+      
+      console.log('❌ UserService.getUserByDisplayName: пользователь не найден');
+      return null;
     } catch (error) {
       console.error('❌ UserService.getUserByDisplayName: общая ошибка:', error);
       this.handleError(error, 'getUserByDisplayName');
@@ -180,28 +161,32 @@ export class UserService {
   }
 
   // Обновить профиль пользователя с инвалидацией кэша
+  // ВАЖНО: Эта операция должна выполняться через серверный API
   static async updateUserProfile(userId, profileData) {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .update(profileData)
-        .eq('id', userId)
-        .select('id, yandex_id, display_name, avatar_url, first_name, last_name, created_at')
-        .maybeSingle(); // Используем maybeSingle вместо single
+      const result = await this.fetchFromServer(`/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(profileData)
+      });
 
-      if (error) throw error;
-      
-      // Инвалидируем кэш после обновления
-      if (data) {
+      if (result.success && result.user) {
+        const data = result.user;
+        // Инвалидируем кэш после обновления
         CacheService.clearUserData(`user_${userId}`, true);
-        CacheService.clearUserData(`yandex_${data.yandex_id}`, true);
+        if (data.yandex_id) {
+          CacheService.clearUserData(`yandex_${data.yandex_id}`, true);
+        }
         
         // Обновляем кэш новыми данными
         CacheService.setUserData(`user_${userId}`, data, true);
-        CacheService.setUserData(`yandex_${data.yandex_id}`, data, true);
+        if (data.yandex_id) {
+          CacheService.setUserData(`yandex_${data.yandex_id}`, data, true);
+        }
+        
+        return data;
       }
       
-      return data;
+      throw new Error('Ошибка обновления профиля');
     } catch (error) {
       console.error('Error updating user profile:', error);
       throw error;
@@ -212,29 +197,15 @@ export class UserService {
   static async getUserVideos(userId) {
     try {
       console.log('🔍 UserService.getUserVideos: ищем видео для userId:', userId);
-      const { data, error } = await supabase
-        .from('videos')
-        .select(`
-          id,
-          user_id,
-          description,
-          video_url,
-          latitude,
-          longitude,
-          likes_count,
-          views_count,
-          created_at,
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ UserService.getUserVideos: ошибка Supabase:', error);
-        throw error;
+      
+      const result = await this.fetchFromServer(`/profile/${userId}`);
+      
+      if (result.success && result.videos) {
+        console.log('✅ UserService.getUserVideos: найдено видео:', result.videos.length);
+        return result.videos;
       }
       
-      console.log('✅ UserService.getUserVideos: найдено видео:', data?.length || 0, data);
-      return data;
+      return [];
     } catch (error) {
       console.error('❌ UserService.getUserVideos: общая ошибка:', error);
       throw error;
